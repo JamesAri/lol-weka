@@ -1,28 +1,82 @@
-import requests
+import logging
+import asyncio
+import aiohttp
+
+from init import init
 import db.repository.matches as matches
 import config
+import utils
 
-def GET_request(resource):
-	headers = {"X-Riot-Token": config.secrets['api_key']}
-	url = config.endpoints['lol_base_url'] + resource
-	r = requests.get(url, headers=headers)
-	return r.json()
+init()
 
-matchesList = ['EUN1_3700431013', 'EUN1_3700362877', 'EUN1_3700344353', 'EUN1_3697216764', 'EUN1_3697189153', 'EUN1_3696737772', 'EUN1_3696706009', 'EUN1_3696663941', 'EUN1_3696222989', 'EUN1_3695694405', 'EUN1_3695669197', 'EUN1_3695292440', 'EUN1_3695267746', 'EUN1_3695238597', 'EUN1_3695230242', 'EUN1_3694652422', 'EUN1_3694245475', 'EUN1_3693455589', 'EUN1_3693448544', 'EUN1_3692328606']
+logger = logging.getLogger(__name__)
 
-def get_matches():
-	resource = f"/lol/match/v5/matches/by-puuid/{config.secrets['puuid']}/ids"
-	return GET_request(resource=resource)
-
-def get_match_statistics(match_id):
-    resource = f"/lol/match/v5/matches/{match_id}/timeline"
-    return GET_request(resource=resource)
+# Create a single global session for all requests
+# to reuse the connection.
+session = None
 
 
-# print(get_matches())
-# print(get_match_statistics(matchesList[0]))
+async def GET_request(resource):
+    headers = {"X-Riot-Token": config.secrets['api_key']}
+    async with session.get(url=resource, headers=headers) as response:
+        return await response.json()
 
-if __name__ == '__main__':
-	matches.saveMatches(list(map((lambda match: (match,)), matchesList)))
-	allMatches = matches.getAllMatches()
-	print(allMatches)
+
+async def get_matches(startTime=None, endTime=None, queue=None, type=None, start=None, count=None):
+    arguments = {**locals()}
+    query_params = utils.construct_query_params(**arguments)
+    resource = f"/lol/match/v5/matches/by-puuid/{config.secrets['puuid']}/ids" + query_params
+    return await GET_request(resource=resource)
+
+
+async def get_match_statistics(match_id):
+    resource = f"/lol/match/v5/matches/{match_id}"
+    return await GET_request(resource=resource)
+
+
+async def worker(name, queue):
+    while True:
+        # Get a "work item" out of the queue.
+        sleep_for = await queue.get()
+
+        # Sleep for the "sleep_for" seconds.
+        await asyncio.sleep(sleep_for)
+
+        # Notify the queue that the "work item" has been processed.
+        queue.task_done()
+        logging.debug(f'[^] worker {name} has slept for {sleep_for:.2f} seconds')
+
+
+async def main():
+    logger.info("[*] Bootstrapping the application.")
+    global session
+    session = aiohttp.ClientSession(base_url=config.endpoints['lol_base_url'])
+
+    try:
+        logger.info("[+] Fetching initiated")
+        fetched_matches = await get_matches(start=0, count=2)
+        logger.info(fetched_matches)
+
+        logger.info(f"[>] Storing matches: {fetched_matches}")
+        matches.saveMatches(list(map((lambda match: (match,)), fetched_matches)))
+        logger.info("[^] Matches successfully stored")
+        
+        allMatches = matches.getAllMatches()
+        logger.debug(f"Checking db integrity: {allMatches}")
+        
+        for match in fetched_matches:
+            stats = await get_match_statistics(match)
+            logger.info("[.] Got match statistics")
+            # todo: process the statistics and store them in db
+            
+            logger.debug("[.] Sleeping for 1 second")
+            await asyncio.sleep(1)
+
+
+    except Exception as e:
+        logger.exception(f"An error occurred:\n{e}")
+        print(f"An error occurred:\n{e}")
+    finally:
+        await session.close()
+
+asyncio.run(main())
