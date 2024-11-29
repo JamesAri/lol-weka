@@ -54,12 +54,14 @@ async def main():
 
     try:
         logger.info("[+] Fetching initiated")
+        # TODO: store all matches
+        # - set request rate limits
+        # - create logic for continuous fetching of matches
         fetched_matches = await get_matches(start=0, count=2)
         logger.info(fetched_matches)
 
         logger.info(f"[>] Storing matches: {fetched_matches}")
         matches.saveMatches(list(map((lambda match: (match,)), fetched_matches)))
-        logger.info("[^] Matches successfully stored")
         
         allMatches = matches.getAllMatches()
         logger.debug(f"Checking db integrity: {allMatches}")
@@ -67,7 +69,11 @@ async def main():
         for match in fetched_matches:
             stats = await get_match_statistics(match)
             logger.info("[.] Got match statistics")
-            # todo: process the statistics and store them in db
+            # TODO: process the statistics and store them in db
+            # - set request rate limits
+            # - create table for statistics
+            # - make workers to process the statistics and save them to db (asyncio.Queue)
+            # - store the statistics in db
             
             logger.debug("[.] Sleeping for 1 second")
             await asyncio.sleep(1)

@@ -1,3 +1,4 @@
+# TODO: rewrite to async
 import logging
 import psycopg
 import atexit
