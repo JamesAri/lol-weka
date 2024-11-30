@@ -16,7 +16,6 @@ class RiotApiService:
         async with self.session.get(url=resource, headers=headers) as response:
             return await response.json()
 
-    # TODO: try **arguments in signature
     async def get_matches(self, startTime=None, endTime=None, queue=None, type=None, start=None, count=None):
         arguments = {**locals()}
         del arguments['self']
