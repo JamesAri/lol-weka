@@ -18,4 +18,3 @@ class Executor:
             logger.critical(f"[!] An error occurred at executemany, rollback initiated")
             await self.conn.rollback()
             raise
-            

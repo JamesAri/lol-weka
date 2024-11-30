@@ -22,7 +22,7 @@ async def init_db():
     exec = Executor(conn, cur)
 
     async def teardown():
-        logger.warning("[-] Database teardown in progress...")
+        logger.info("[-] Database teardown in progress...")
         if not cur.closed:
             await cur.close()
         else:
