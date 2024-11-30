@@ -1,9 +1,10 @@
 import time
-import config
 import logging
 
+import config
 
-def _setup_logger():
+
+def init_logger():
     # configure root logger
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
     filename = config.logging['log_file'].replace('.log', f'_{timestamp}.log')
@@ -14,8 +15,4 @@ def _setup_logger():
     )
 
 
-def init():
-    _setup_logger()
-
-
-__ALL__ = ['init']
+__ALL__ = ['init_logger']

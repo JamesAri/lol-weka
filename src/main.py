@@ -1,88 +1,98 @@
 import logging
 import asyncio
 import aiohttp
+import signal
 
-from init import init
+from logger import init_logger
+from db import init_db
 import db.repository.matches as matches
 import config
-import utils
+from riot_api_service import RiotApiService
 
-init()
-
+init_logger()
 logger = logging.getLogger(__name__)
-
-# Create a single global session for all requests
-# to reuse the connection.
-session = None
-
-
-async def GET_request(resource):
-    headers = {"X-Riot-Token": config.secrets['api_key']}
-    async with session.get(url=resource, headers=headers) as response:
-        return await response.json()
-
-
-async def get_matches(startTime=None, endTime=None, queue=None, type=None, start=None, count=None):
-    arguments = {**locals()}
-    query_params = utils.construct_query_params(**arguments)
-    resource = f"/lol/match/v5/matches/by-puuid/{config.secrets['puuid']}/ids" + query_params
-    return await GET_request(resource=resource)
-
-
-async def get_match_statistics(match_id):
-    resource = f"/lol/match/v5/matches/{match_id}"
-    return await GET_request(resource=resource)
-
-
-async def worker(name, queue):
-    while True:
-        # Get a "work item" out of the queue.
-        sleep_for = await queue.get()
-
-        # Sleep for the "sleep_for" seconds.
-        await asyncio.sleep(sleep_for)
-
-        # Notify the queue that the "work item" has been processed.
-        queue.task_done()
-        logging.debug(f'[^] worker {name} has slept for {sleep_for:.2f} seconds')
 
 
 async def main():
-    logger.info("[*] Bootstrapping the application.")
-    global session
-    session = aiohttp.ClientSession(base_url=config.endpoints['lol_base_url'])
-
     try:
-        logger.info("[+] Fetching initiated")
+        logger.info("[*] Bootstrapping the application.")
+
+        # Initialize the database connection.
+        _, cur, exec, teardown = await init_db()
+
+        # Initialize the aiohttp session.
+        session = aiohttp.ClientSession(base_url=config.endpoints['lol_base_url'])
+
+        riot_api_service = RiotApiService(session=session)
+
+        await asyncio.sleep(1000)
+
         # TODO: store all matches
         # - set request rate limits
         # - create logic for continuous fetching of matches
-        fetched_matches = await get_matches(start=0, count=2)
+        logger.info("[+] Fetching initiated")
+        fetched_matches = await riot_api_service.get_matches(start=0, count=2)
         logger.info(fetched_matches)
 
         logger.info(f"[>] Storing matches: {fetched_matches}")
-        matches.saveMatches(list(map((lambda match: (match,)), fetched_matches)))
-        
-        allMatches = matches.getAllMatches()
+        await matches.saveMatches(exec=exec, matches=list(map((lambda match: (match,)), fetched_matches)))
+
+        allMatches = await matches.getAllMatches(cur=cur)
         logger.debug(f"Checking db integrity: {allMatches}")
-        
+
+        # TODO: process the statistics and store them in db
+        # - set request rate limits
+        # - create table for statistics
+        # - make workers to process the statistics and save them to db (asyncio.Queue)
+        # - store the statistics in db
         for match in fetched_matches:
-            stats = await get_match_statistics(match)
-            logger.info("[.] Got match statistics")
-            # TODO: process the statistics and store them in db
-            # - set request rate limits
-            # - create table for statistics
-            # - make workers to process the statistics and save them to db (asyncio.Queue)
-            # - store the statistics in db
-            
+            logger.info("[>] Fetching match statistics")
+            stats = await riot_api_service.get_match_statistics(match)
             logger.debug("[.] Sleeping for 1 second")
             await asyncio.sleep(1)
-
-
     except Exception as e:
         logger.exception(f"An error occurred:\n{e}")
         print(f"An error occurred:\n{e}")
     finally:
+        logger.info("[-] Closing database connections")
+        await teardown()
+        logger.info("[-] Closing session connections")
         await session.close()
 
+
 asyncio.run(main())
+
+
+# async def shutdown(signal, loop):
+#     """Cleanup tasks tied to the service's shutdown."""
+
+#     logger.info(f"Received exit signal {signal.name}...")
+
+#     tasks = [t for t in asyncio.all_tasks() if t is not
+#              asyncio.current_task()]
+
+#     [task.cancel() for task in tasks]
+
+#     logger.info(f"Cancelling {len(tasks)} outstanding tasks")
+#     await asyncio.gather(*tasks, return_exceptions=True)
+
+#     loop.stop()
+
+
+# def run():
+#     loop = asyncio.get_event_loop()
+
+#     loop.add_signal_handler(signal.SIGHUP, lambda: asyncio.create_task(shutdown(signal.SIGHUP, loop)))
+#     loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(shutdown(signal.SIGTERM, loop)))
+#     loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(shutdown(signal.SIGINT, loop)))
+
+#     try:
+#         loop.create_task(main())
+#         loop.run_forever()
+#     finally:
+#         loop.close()
+#         logger.info("[-] Successfully shutdown the service loop.")
+
+
+# if __name__ == "__main__":
+#     run()

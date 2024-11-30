@@ -1,1 +1,1 @@
-from db.__connect__ import *
+from db.__setup__ import *

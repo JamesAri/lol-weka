@@ -10,12 +10,12 @@ class Executor:
         self.conn = conn
         self.cur = cur
 
-    def executemany(self, query, params_seq, returning=False):
+    async def executemany(self, query, params_seq, returning=False):
         try:
-            self.cur.executemany(query=query, params_seq=params_seq, returning=returning)
-            self.conn.commit()
+            await self.cur.executemany(query=query, params_seq=params_seq, returning=returning)
+            await self.conn.commit()
         except Exception as e:
             logger.critical(f"[!] An error occurred at executemany, rollback initiated")
-            self.conn.rollback()
+            await self.conn.rollback()
             raise
             
