@@ -18,6 +18,7 @@ async def shutdown(signal, loop):
     logger.debug(f"Cancelling {len(tasks)} outstanding tasks")
 
     try:
+        # TODO: check task(s) results (and exceptions/errors)
         await asyncio.gather(*tasks, return_exceptions=True)
     except asyncio.CancelledError:
         logger.warning("A task was forcibly cancelled during shutdown")
