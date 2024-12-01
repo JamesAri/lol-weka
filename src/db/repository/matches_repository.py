@@ -1,12 +1,20 @@
 class MatchesRepository:
 
-    async def saveMatches(self, exec, matches):
+    async def save_matches(self, exec, matches):
         query = "INSERT INTO matches (match_string) VALUES (%s)"
         await exec.executemany(query=query, params_seq=matches)
 
-    async def getAllMatches(cur):
+    async def get_all_matches(self, cur) -> list[str]:
         """
         Get all matches from the database.
         """
-        await cur.execute("SELECT * FROM matches")
-        return await cur.fetchall()
+        await cur.execute("SELECT match_string FROM matches")
+        rows = await cur.fetchall()
+        return [row[0] for row in rows]
+
+    async def get_oldest_match(self, cur) -> str:
+        """
+        Get the oldest match id from the database.
+        """
+        await cur.execute("SELECT match_string FROM matches ORDER BY match_string ASC LIMIT 1")
+        return (await cur.fetchone())[0]
