@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Callable, Any, Optional
 import logging
 import asyncio
 import time
@@ -10,7 +10,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RateLimit:
-    """Class for defining sliding window's rate limits"""
+    """
+    Class for defining sliding window's rate limits
+
+    :raises ValueError: If the rate limit or time window is less than or equal to 0
+    """
     # Rate limit within a specified time window (rate_limit_time_window)
     value: int
     # Time window in seconds for which the rate limit is valid
@@ -40,8 +44,9 @@ class SlidingWindow:
         return len(self.queue) >= self.rate_limit.value
 
 
-async def _sliding_window(queue, ratelimit, ratelimit_time_window):
-    if len(queue) >= ratelimit:
+async def _check_sliding_window(window: SlidingWindow):
+    if window.is_full():
+        queue, ratelimit, ratelimit_time_window = window.queue, window.rate_limit.value, window.rate_limit.time_window
         print(f'[>] Sliding window ({ratelimit_time_window}s) size: {len(queue)}/{ratelimit}')
         while len(queue):
             oldest = queue[0]
@@ -50,7 +55,7 @@ async def _sliding_window(queue, ratelimit, ratelimit_time_window):
             if time_passed >= ratelimit_time_window:
                 queue.popleft()
             # we exceeded the rate limit, so we have to wait
-            elif len(queue) >= ratelimit:
+            elif window.is_full():
                 sleep_time = ratelimit_time_window - time_passed + 0.6  # 0.6 to account for some time errors
                 print(f"[>] Rate limit exceeded for sliding window ({ratelimit_time_window}s), sleeping for: {sleep_time}")
                 await asyncio.sleep(sleep_time)
@@ -60,7 +65,13 @@ async def _sliding_window(queue, ratelimit, ratelimit_time_window):
         print(f'[<] Sliding window ({ratelimit_time_window}s) size: {len(queue)}/{ratelimit}')
 
 
-async def sliding_window(*args, cb, rate_limits: List[RateLimit], delta_t=None, **kwargs):
+async def sliding_window(
+    *args,
+    cb: Callable[..., Any],
+    rate_limits: List[RateLimit],
+    delta_t: Optional[float] = None,
+    **kwargs
+) -> None:
     """
     Sliding window rate-limiting implementation.
 
@@ -92,7 +103,7 @@ async def sliding_window(*args, cb, rate_limits: List[RateLimit], delta_t=None, 
                 await sliding_window('PARAM_1', cb=my_epic_request, 
                     rate_limits=rate_limits, param2='PARAM_2')
             except ValueError as e:
-                print(f"An exception occurred: {e}")
+                print(f"An error occurred: {e}")
 
         # OUT:
         # Request: PARAM_1, PARAM_2
@@ -117,7 +128,7 @@ async def sliding_window(*args, cb, rate_limits: List[RateLimit], delta_t=None, 
     print(f"[.] Sliding windows delta_t: {delta_t}")
     while True:
         for window in sliding_windows:
-            await _sliding_window(window.queue, window.rate_limit.value, window.rate_limit.time_window)
+            await _check_sliding_window(window)
 
         if all(not window.is_full() for window in sliding_windows):
             counter += 1
