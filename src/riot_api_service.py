@@ -2,20 +2,28 @@ from functools import wraps
 import logging
 
 from utils.requests import construct_query_params
+from utils.throttled_task_runner import ThrottledTaskRunner, RateLimit
 import config
 
 logger = logging.getLogger(__name__)
 
 
 class RiotApiService:
+
+    __ttr: ThrottledTaskRunner
+
     def __init__(self, session):
         self.session = session
+        rate_limits = [
+            RateLimit(value=config.rate_limits['per_second'], time_window=1),
+            RateLimit(value=config.rate_limits['per_minute'], time_window=60),
+        ]
+        self.__ttr = ThrottledTaskRunner(rate_limits=rate_limits)
 
     def rate_limited(func):
         @wraps(func)
-        async def wrapper(self, *args, **kwargs):
-            print("TODO: Implement rate limiting")
-            return await func(self, *args, **kwargs)
+        async def wrapper(self: 'RiotApiService', *args, **kwargs):
+            return await self.__ttr.run(self, *args, cb=func, **kwargs)
         return wrapper
 
     @rate_limited
