@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 rate_limits = dict(
-    per_second=20,
-    per_two_minutes=100,
+    per_second=20 - 3,  # 3 requests as buffer so RITO doesn't ban us O:)
+    per_minute=50 - 3,
 )
 
 secrets = dict(

@@ -40,6 +40,7 @@ def run_event_loop(main):
         try:
             # Run the main task
             await main()
+            logger.debug("[*] Main task finished")
             # Main task finished, stop the loop
             loop.stop()
         except asyncio.CancelledError as e:
