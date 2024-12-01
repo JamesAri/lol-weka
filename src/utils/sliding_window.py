@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Callable, Any, Optional
+from typing import List, Callable, Any, Optional, Awaitable
 import logging
 import asyncio
 import time
@@ -67,7 +67,7 @@ async def _check_sliding_window(window: SlidingWindow):
 
 async def sliding_window(
     *args,
-    cb: Callable[..., Any],
+    cb: Callable[..., Awaitable[Any]],
     rate_limits: List[RateLimit],
     delta_t: Optional[float] = None,
     **kwargs
@@ -77,10 +77,10 @@ async def sliding_window(
 
     This implementation ensures that a callback function is invoked while adhering 
     to specified rate limits using a sliding window approach. Additional arguments 
-    will be be passed to the callback function.
+    will be passed to the callback function.
 
     Args:
-        cb (Callable): The callback function to be called.
+        cb (Callable[..., Awaitable[Any]]): The awaitable callback function to be called.
         rate_limits (List[RateLimit]): A list of RateLimit objects defining the rate limits.
         delta_t (Optional[float]): The time step (in seconds) for the sliding windows. 
             Defaults to None and will be precalculated based on the slowest rate limit.
