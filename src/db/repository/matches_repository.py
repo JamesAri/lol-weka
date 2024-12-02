@@ -12,9 +12,10 @@ class MatchesRepository:
         rows = await cur.fetchall()
         return [row[0] for row in rows]
 
-    async def get_oldest_match(self, cur) -> str:
+    async def get_oldest_match(self, cur) -> str | None:
         """
         Get the oldest match id from the database.
         """
         await cur.execute("SELECT match_string FROM matches ORDER BY match_string ASC LIMIT 1")
-        return (await cur.fetchone())[0]
+        row = await cur.fetchone()
+        return row[0] if row else None

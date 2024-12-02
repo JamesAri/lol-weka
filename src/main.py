@@ -92,7 +92,8 @@ async def main():
         #### FETCHING MATCHES ####
         # If the service restarts/crashes, we want to resume from the oldest match we have in the database.
         # TODO: we could still want to fetch the games we played (will play) later
-        await fetch_matches(exec=exec, end_time=resumed_timestamp(cur=cur))
+        end_time = await resumed_timestamp(cur=cur)
+        await fetch_matches(exec=exec, end_time=end_time)
 
         #### FETCHING MATCHES STATISTICS ####
         await fetch_statistics(cur=cur)
