@@ -15,7 +15,7 @@ async def shutdown(signal, loop):
     for task in tasks:
         task.cancel()  # tasks should cleanup in their 'finally' blocks
 
-    logger.debug(f"Cancelling {len(tasks)} outstanding tasks")
+    logger.info(f"Cancelling {len(tasks)} outstanding tasks")
 
     try:
         # TODO: check task(s) results (and exceptions/errors)
@@ -23,7 +23,7 @@ async def shutdown(signal, loop):
     except asyncio.CancelledError:
         logger.warning("A task was forcibly cancelled during shutdown")
 
-    logger.debug("Stopping the event loop")
+    logger.info("Stopping the event loop")
     loop.stop()
 
 
@@ -40,7 +40,7 @@ def run_event_loop(main):
         try:
             # Run the main task
             await main()
-            logger.debug("[*] Main task finished")
+            logger.info("[*] Main task finished")
             # Main task finished, stop the loop
             loop.stop()
         except asyncio.CancelledError as e:

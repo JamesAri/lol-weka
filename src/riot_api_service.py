@@ -30,7 +30,7 @@ class RiotApiService:
     async def _GET(self, resource):
         headers = {"X-Riot-Token": config.secrets['api_key']}
         async with self.session.get(url=resource, headers=headers) as response:
-            logger.debug(f"[>] GET {response.url}")
+            logger.info(f"[>] GET {response.url}")
             res = await response.json()
             if response.status != 200:
                 raise Exception(f"Error: {res}")
