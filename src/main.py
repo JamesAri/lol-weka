@@ -7,7 +7,7 @@ import toggles
 from logger import init_logger
 from db import init_db
 from db.repository import MatchesRepository
-from riot_api_service import RiotApiService
+from services.riot_api_service import RiotApiService
 from event_loop import run_event_loop
 from utils.throttled_task_runner import ThrottledTaskRunner, RateLimit
 
@@ -43,6 +43,7 @@ async def fetch_worker(queue: asyncio.Queue, end_time=None):
         # If we didn't fetch any matches, we're done
         if len(fetched_matches) == 0:
             logger.info("[*] No more matches to fetch")
+            await queue.put(None)
             return
 
         await queue.put(fetched_matches)
@@ -58,6 +59,9 @@ async def store_worker(exec, queue: asyncio.Queue):
     while True:
         # TODO: hanging after completion for now, fix this
         matches = await queue.get()
+        if matches is None:
+            logger.info("[*] No more matches to store")
+            return
         logger.info(f"[+] Storing {len(matches)} matches: {matches}")
         await matches_repository.save_matches(exec=exec, matches=list(map((lambda match: (match,)), matches)))
         queue.task_done()
