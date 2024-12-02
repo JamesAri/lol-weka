@@ -29,42 +29,37 @@ def get_next_timestamp(timestamp_ms: int) -> int:
     @param timestamp_ms: timestamp in milliseconds (as retrieved from the API)
     @return: timestamp in seconds of the next match to fetch
     """
-    # -1 s to avoid fetching the last match again.
+    # -1 s to avoid fetching the last match again
     return int(timestamp_ms / 1000) - 1
 
 
 async def fetch_matches(exec, end_time=None):
-    # Fetch 100 matches at a time
-    fetched_matches = await riot_api_service.get_matches(start=0, count=100, endTime=end_time)
-    logger.info(f"[+] Fetched matches: {fetched_matches}")
+    while True:
+        # Fetch 100 matches at a time
+        fetched_matches = await riot_api_service.get_matches(start=0, count=100, endTime=end_time)
+        logger.info(f"[+] Fetched matches: {fetched_matches}")
 
-    # If we didn't fetch any matches, we're done
-    if len(fetched_matches) == 0:
-        logger.info("[*] No more matches to fetch")
-        return
+        # If we didn't fetch any matches, we're done
+        if len(fetched_matches) == 0:
+            logger.info("[*] No more matches to fetch")
+            return
 
-    # Store the matches in the database (TODO: do this in a separate worker)
-    logger.info(f"[^] Storing matches")
-    await matches_repository.save_matches(exec=exec, matches=list(map((lambda match: (match,)), fetched_matches)))
+        # Store the matches in the database (TODO: do this in a separate worker)
+        logger.info(f"[^] Storing matches")
+        await matches_repository.save_matches(exec=exec, matches=list(map((lambda match: (match,)), fetched_matches)))
 
-    # Get the last fetched match (oldest one) and its game end timestamp to refetch older matches from there
-    last_match = fetched_matches[-1]
-    game_end_timestamp_ms = await riot_api_service.get_match_end_timestamp(last_match)
-    end_time = get_next_timestamp(game_end_timestamp_ms)
-    logger.info(f"[.] Continuing from => match: {last_match}, gameEndTimestamp: {game_end_timestamp_ms} ({end_time})")
+        # Get the last fetched match (oldest one) and its game end timestamp to refetch older matches from there
+        last_match = fetched_matches[-1]
+        game_end_timestamp_ms = await riot_api_service.get_match_end_timestamp(last_match)
+        end_time = get_next_timestamp(game_end_timestamp_ms)
+        logger.info(f"[.] Continuing from => match: {last_match}, gameEndTimestamp: {game_end_timestamp_ms} ({end_time})")
 
 
 async def fetch_statistics(cur):
-    allMatches = await matches_repository.get_all_matches(cur=cur)
     # TODO:
     # - create table for statistics
     # - make workers to process the statistics and save them to db (asyncio.Queue)
-    logger.info(f"[>] Fetching match statistics for {len(allMatches)} entries")
-    for match in allMatches:
-        logger.info(f"[+] Processing match: {match}")
-        stats = await riot_api_service.get_match_statistics(match)
-        logger.debug("[.] Sleeping for 1 second")
-        await asyncio.sleep(1)
+    pass
 
 
 async def resumed_timestamp(cur) -> int | None:
@@ -100,7 +95,7 @@ async def main():
         await fetch_matches(exec=exec, end_time=resumed_timestamp(cur=cur))
 
         #### FETCHING MATCHES STATISTICS ####
-        # await fetch_statistics(cur=cur)
+        await fetch_statistics(cur=cur)
 
     except Exception as e:
         logger.exception(f"An error occurred:\n{e}")
