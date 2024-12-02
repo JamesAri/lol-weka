@@ -3,6 +3,7 @@ import asyncio
 import aiohttp
 
 import config
+import toggles
 from logger import init_logger
 from db import init_db
 from db.repository import MatchesRepository
@@ -33,26 +34,33 @@ def get_next_timestamp(timestamp_ms: int) -> int:
     return int(timestamp_ms / 1000) - 1
 
 
-async def fetch_matches(exec, end_time=None):
+async def fetch_worker(queue: asyncio.Queue, end_time=None):
     while True:
         # Fetch 100 matches at a time
         fetched_matches = await riot_api_service.get_matches(start=0, count=100, endTime=end_time)
-        logger.info(f"[+] Fetched matches: {fetched_matches}")
+        logger.info(f"[+] Fetched {len(fetched_matches)} matches: {fetched_matches}")
 
         # If we didn't fetch any matches, we're done
         if len(fetched_matches) == 0:
             logger.info("[*] No more matches to fetch")
             return
 
-        # Store the matches in the database (TODO: do this in a separate worker)
-        logger.info(f"[^] Storing matches")
-        await matches_repository.save_matches(exec=exec, matches=list(map((lambda match: (match,)), fetched_matches)))
+        await queue.put(fetched_matches)
 
         # Get the last fetched match (oldest one) and its game end timestamp to refetch older matches from there
         last_match = fetched_matches[-1]
         game_end_timestamp_ms = await riot_api_service.get_match_end_timestamp(last_match)
         end_time = get_next_timestamp(game_end_timestamp_ms)
-        logger.info(f"[.] Continuing from => match: {last_match}, gameEndTimestamp: {game_end_timestamp_ms} ({end_time})")
+        logger.info(f"[>] Continuing from => match: {last_match}, gameEndTimestamp: {game_end_timestamp_ms} ({end_time})")
+
+
+async def store_worker(exec, queue: asyncio.Queue):
+    while True:
+        # TODO: hanging after completion for now, fix this
+        matches = await queue.get()
+        logger.info(f"[+] Storing {len(matches)} matches: {matches}")
+        await matches_repository.save_matches(exec=exec, matches=list(map((lambda match: (match,)), matches)))
+        queue.task_done()
 
 
 async def fetch_statistics(cur):
@@ -76,13 +84,9 @@ async def resumed_timestamp(cur) -> int | None:
 
 
 async def main():
-    FETCH_MATCHES_TOGGLE = False
-    FETCH_STATISTICS_TOGGLE = False
     global riot_api_service
     try:
         logger.info("[*] Bootstrapping the application")
-
-        # TODO: work_queue = asyncio.Queue()
 
         # Initialize the database connection.
         _, cur, exec, teardown = await init_db()
@@ -91,13 +95,16 @@ async def main():
         session = aiohttp.ClientSession(base_url=config.endpoints['lol_base_url'])
         riot_api_service = RiotApiService(session=session)
 
-        if FETCH_MATCHES_TOGGLE:
+        if toggles.FETCH_MATCHES_TOGGLE:
+            matches_queue = asyncio.Queue(5)
             # If the service restarts/crashes, we want to resume from the oldest match we have in the database.
             # TODO: we could still want to fetch the games we played (will play) later
-            end_time = await resumed_timestamp(cur=cur)
-            await fetch_matches(exec=exec, end_time=end_time)
+            end_time = await resumed_timestamp(cur=cur) if toggles.SHOULD_RESUME_TOGGLE else None
+            fetching_task = asyncio.create_task(fetch_worker(end_time=end_time, queue=matches_queue))
+            storing_task = asyncio.create_task(store_worker(exec=exec, queue=matches_queue))
+            await asyncio.gather(fetching_task, storing_task)
 
-        if FETCH_STATISTICS_TOGGLE:
+        if toggles.FETCH_STATISTICS_TOGGLE:
             await fetch_statistics(cur=cur)
 
     except Exception as e:
