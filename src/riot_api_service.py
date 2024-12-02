@@ -22,7 +22,7 @@ class RiotApiService:
 
     def rate_limited(func):
         @wraps(func)
-        async def wrapper(self: 'RiotApiService', *args, **kwargs):
+        async def wrapper(self: RiotApiService, *args, **kwargs):
             return await self.__ttr.run(self, *args, cb=func, **kwargs)
         return wrapper
 

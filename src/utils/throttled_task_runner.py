@@ -88,7 +88,7 @@ async def main():
 ```
     """
     rate_limits: List[RateLimit]
-    delta_t: Optional[float]
+    delta_t: float
 
     # META
     __counter: int = 0
@@ -100,7 +100,7 @@ async def main():
 
         Args:
             rate_limits (List[RateLimit]): A list of RateLimit objects defining the rate limits.
-            delta_t (Optional[float]): The time step (in seconds) for the sliding windows.
+            delta_t (Optional[float]): The time step speed (in seconds) for the sliding windows.
                 Defaults to None and will be precalculated based on the slowest rate limit.
         """
         self.rate_limits = rate_limits
@@ -117,12 +117,12 @@ async def main():
             # try to distribute the requests evenly over the time windows
             self.delta_t = max([window.delta_t for window in self.__sliding_windows])
 
-        print(f"[.] Sliding windows delta_t: {self.delta_t}")
+        logger.debug(f"[.] Sliding windows delta_t: {self.delta_t}")
 
     async def __check_sliding_window(self, window: _SlidingWindow):
         if window.is_full():
             queue, ratelimit, ratelimit_time_window = window.queue, window.rate_limit.value, window.rate_limit.time_window
-            print(f'[>] Sliding window ({ratelimit_time_window}s) size: {len(queue)}/{ratelimit}')
+            logger.debug(f'[>] Sliding window ({ratelimit_time_window}s) size: {len(queue)}/{ratelimit}')
             while len(queue):
                 oldest = queue[0]
                 time_passed = time.time() - oldest
@@ -132,12 +132,12 @@ async def main():
                 # we exceeded the rate limit, so we have to wait
                 elif window.is_full():
                     sleep_time = ratelimit_time_window - time_passed + 0.6  # 0.6 to account for some time errors
-                    print(f"[>] Rate limit exceeded for sliding window ({ratelimit_time_window}s), sleeping for: {sleep_time}")
+                    logger.debug(f"[>] Rate limit exceeded for sliding window ({ratelimit_time_window}s), sleeping for: {sleep_time}")
                     await asyncio.sleep(sleep_time)
                 # sliding window is now within the limits
                 else:
                     break
-            print(f'[<] Sliding window ({ratelimit_time_window}s) size: {len(queue)}/{ratelimit}')
+            logger.debug(f'[<] Sliding window ({ratelimit_time_window}s) size: {len(queue)}/{ratelimit}')
 
     async def run(
         self,
@@ -166,7 +166,7 @@ async def main():
             raise RuntimeError("Unexpected full window detected; please report this incident")
 
         self.__counter += 1
-        print(f"[+] Calling {cb.__name__}, iteration: {self.__counter}")
+        logger.debug(f"[+] Calling {cb.__name__}, iteration: {self.__counter}")
 
         res = None
         if asyncio.iscoroutinefunction(cb):
