@@ -12,7 +12,7 @@ _pg_connection_dict = {
     'user': config.postgres['user'],
     'password': config.postgres['secret'],
     'port': config.postgres['port'],
-    'host': 'localhost',
+    'host': config.postgres['host'],
 }
 
 
@@ -31,7 +31,6 @@ async def init_db():
             await conn.close()
         else:
             logger.warning("[!] Database connection is already closed.")
-
     return conn, cur, exec, teardown
 
 __all__ = ['init_db']
