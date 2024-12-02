@@ -59,45 +59,45 @@ class ThrottledTaskRunner:
     evenly over the time windows**.
 
     Example:
-```python
-from throttled_task_runner import ThrottledTaskRunner, RateLimit
 
-async def main():
-    try:
-        rate_limits = [
-            RateLimit(value=20, time_window=1),
-            RateLimit(value=50, time_window=60)
-        ]
+    ```python
+    from throttled_task_runner import ThrottledTaskRunner, RateLimit
 
-        ttr = ThrottledTaskRunner(rate_limits=rate_limits, delta_t=0.1)
+    async def main():
+        try:
+            rate_limits = [
+                RateLimit(value=20, time_window=1),
+                RateLimit(value=50, time_window=60)
+            ]
 
-        async def some_request(param1, param2):
-            return f'Request: {param1}, {param2}'
+            ttr = ThrottledTaskRunner(rate_limits=rate_limits, delta_t=0.1)
 
-        while True:
-            res = await ttr.run('PARAM_1', cb=some_request, param2='PARAM_2')
-            print(res)
+            async def some_request(param1, param2):
+                return f'Request: {param1}, {param2}'
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
+            while True:
+                res = await ttr.run('PARAM_1', cb=some_request, param2='PARAM_2')
+                print(res)
 
-    # OUT:
-    # Request: PARAM_1, PARAM_2
-    # Request: PARAM_1, PARAM_2
-    # ...
-```
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        # OUT:
+        # Request: PARAM_1, PARAM_2
+        # Request: PARAM_1, PARAM_2
+        # ...
+    ```
     """
     rate_limits: List[RateLimit]
     delta_t: float
 
     # META
     __counter: int = 0
+    __last_time_ran: float = 0
     __sliding_windows: List[_SlidingWindow]
 
     def __init__(self, rate_limits: List[RateLimit], delta_t: Optional[float] = None):
         """
-        Initialize the sliding window rate limiter.
-
         Args:
             rate_limits (List[RateLimit]): A list of RateLimit objects defining the rate limits.
             delta_t (Optional[float]): The time step speed (in seconds) for the sliding windows.
@@ -106,18 +106,16 @@ async def main():
         self.rate_limits = rate_limits
         self.delta_t = delta_t
 
-        # SLIDING WINDOWS
         self.__sliding_windows = [_SlidingWindow(rate_limit) for rate_limit in rate_limits]
 
-        # DETERMINE THE TIME STEP (delta_t) FOR THE SLIDING WINDOWS
+        # Determine the time step (delta_t) for the sliding windows:
         # NOTE:
         # We could choose different strategies here, such as fetching as fast as possible
         # by setting delta_t to the minimum of all rate limits.
         if self.delta_t is None:
             # try to distribute the requests evenly over the time windows
             self.delta_t = max([window.delta_t for window in self.__sliding_windows])
-
-        logger.debug(f"[.] Sliding windows delta_t: {self.delta_t}")
+        logger.info(f"[.] Sliding windows delta_t: {self.delta_t}")
 
     async def __check_sliding_window(self, window: _SlidingWindow):
         if window.is_full():
@@ -157,7 +155,11 @@ async def main():
         Returns:
             Any: The result of the callback function.
         """
-        await asyncio.sleep(self.delta_t)
+
+        remaining_sleep = self.delta_t - (time.time() - self.__last_time_ran)
+        if remaining_sleep > 0:
+            logger.debug(f"[.] Early call detected, sleeping for: {remaining_sleep}")
+            await asyncio.sleep(remaining_sleep)
 
         for window in self.__sliding_windows:
             await self.__check_sliding_window(window)
@@ -175,6 +177,7 @@ async def main():
             res = cb(*args, **kwargs)
 
         now = time.time()
+        self.__last_time_ran = now
         for window in self.__sliding_windows:
             window.queue.append(now)
 
