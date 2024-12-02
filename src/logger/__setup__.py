@@ -6,11 +6,17 @@ import config
 
 
 def init_logger():
+    """ Configures root logger """
     os.makedirs(os.path.dirname(config.logging['log_file']), exist_ok=True)
 
-    # configure root logger
     timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-    filename = config.logging['log_file'].replace('.log', f'_{timestamp}.log')
+
+    log_file = config.logging['log_file']
+    if log_file.endswith('.log'):
+        log_file = log_file[:-4]
+
+    filename = f"{log_file}_{timestamp}.log"
+
     logging.basicConfig(
         filename=filename,
         level=logging.NOTSET,
