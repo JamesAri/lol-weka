@@ -76,6 +76,8 @@ async def resumed_timestamp(cur) -> int | None:
 
 
 async def main():
+    FETCH_MATCHES_TOGGLE = False
+    FETCH_STATISTICS_TOGGLE = False
     global riot_api_service
     try:
         logger.info("[*] Bootstrapping the application")
@@ -89,14 +91,14 @@ async def main():
         session = aiohttp.ClientSession(base_url=config.endpoints['lol_base_url'])
         riot_api_service = RiotApiService(session=session)
 
-        #### FETCHING MATCHES ####
-        # If the service restarts/crashes, we want to resume from the oldest match we have in the database.
-        # TODO: we could still want to fetch the games we played (will play) later
-        end_time = await resumed_timestamp(cur=cur)
-        await fetch_matches(exec=exec, end_time=end_time)
+        if FETCH_MATCHES_TOGGLE:
+            # If the service restarts/crashes, we want to resume from the oldest match we have in the database.
+            # TODO: we could still want to fetch the games we played (will play) later
+            end_time = await resumed_timestamp(cur=cur)
+            await fetch_matches(exec=exec, end_time=end_time)
 
-        #### FETCHING MATCHES STATISTICS ####
-        await fetch_statistics(cur=cur)
+        if FETCH_STATISTICS_TOGGLE:
+            await fetch_statistics(cur=cur)
 
     except Exception as e:
         logger.exception(f"An error occurred:\n{e}")
