@@ -31,6 +31,6 @@ logging = dict(
 )
 
 exports = dict(
-    csv_dir=os.getenv('CSV_EXPORT_DIR'),
-    json_dir=os.getenv('JSON_EXPORT_DIR'),
+    csv_export_dir=os.getenv('CSV_EXPORT_DIR'),
+    json_matches_dir=os.getenv('JSON_MATCHES_DIR'),
 )

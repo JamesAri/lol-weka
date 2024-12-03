@@ -1,5 +1,6 @@
 tmp/
 logs/
+exports/
 
 db/db-data/
 
