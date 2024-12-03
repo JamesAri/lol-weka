@@ -46,8 +46,9 @@ async def fetch_matches():
 
 
 async def fetch_statistics():
+    # Just one worker for now, we are rate limited anyways
     statistics_fetching_task = asyncio.create_task(
-        FetchStatisticsWorker(cur, riot_api_service).run(from_match_id=None),
+        FetchStatisticsWorker(cur, riot_api_service).run(last_match_id=None),
         name="FetchStatisticsWorker",
     )
     await run_tasks([statistics_fetching_task])
