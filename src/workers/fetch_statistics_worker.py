@@ -2,6 +2,7 @@ from tqdm import tqdm
 import json
 import os
 import logging
+import psycopg
 
 from db.repository.matches_repository import MatchesRepository
 from services.riot_api_service import RiotApiService
@@ -11,18 +12,20 @@ logger = logging.getLogger(__name__)
 
 
 class FetchStatisticsWorker:
+    cur: psycopg.cursor
     matches_repository: MatchesRepository = MatchesRepository()  # TODO: do this via Dependency Injection
     riot_api_service: RiotApiService
 
-    def __init__(self, riot_api_service):
+    def __init__(self, cur, riot_api_service):
+        self.cur = cur
         self.riot_api_service = riot_api_service
 
-    async def run(self, cur, from_match_id=None):
+    async def run(self, from_match_id=None):
         try:
             json_export_dir = config.exports['json_dir']
             os.makedirs(json_export_dir, exist_ok=True)
 
-            all_matches = await self.matches_repository.get_matches_older_than(cur=cur, match_id=from_match_id)
+            all_matches = await self.matches_repository.get_matches_older_than(cur=self.cur, match_id=from_match_id)
             logger.info(f"[+] Began processing {len(all_matches)} matches")
             all_matches = tqdm(all_matches)
 

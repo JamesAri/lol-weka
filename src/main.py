@@ -38,18 +38,18 @@ async def main():
         if toggles.FETCH_MATCHES_TOGGLE:
             matches_queue = asyncio.Queue(5)
             match_fetching_task = asyncio.create_task(
-                FetchMatchesWorker(riot_api_service, should_resume=toggles.SHOULD_RESUME_TOGGLE).run(queue=matches_queue),
+                FetchMatchesWorker(cur, riot_api_service, should_resume=toggles.SHOULD_RESUME_TOGGLE).run(queue=matches_queue),
                 name="FetchMatchesWorker",
             )
             match_storing_task = asyncio.create_task(
-                StoreMatchesWorker().run(exec=exec, queue=matches_queue),
+                StoreMatchesWorker(exec).run(queue=matches_queue),
                 name="StoreMatchesWorker",
             )
             await run_tasks([match_fetching_task, match_storing_task])
 
         if toggles.FETCH_STATISTICS_TOGGLE:
             statistics_fetching_task = asyncio.create_task(
-                FetchStatisticsWorker(riot_api_service).run(cur=cur, from_match_id=None),
+                FetchStatisticsWorker(riot_api_service).run(from_match_id=None),
                 name="FetchStatisticsWorker",
             )
             await run_tasks([statistics_fetching_task])

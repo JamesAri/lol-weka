@@ -22,12 +22,12 @@ class FetchMatchesWorker:
         self.riot_api_service = riot_api_service
         self.should_resume = should_resume
 
-    async def __resumed_timestamp(self, cur) -> int | None:
+    async def __resumed_timestamp(self) -> int | None:
         """ 
         Get the next timestamp (in seconds) based on the last match we have 
         in the database from which we want to resume fetching matches.
         """
-        oldest_match_id = await self.matches_repository.get_oldest_match(cur=cur)
+        oldest_match_id = await self.matches_repository.get_oldest_match(cur=self.cur)
         if oldest_match_id:
             oldest_match_end_timestamp_ms = await self.riot_api_service.get_match_end_timestamp(match_id=oldest_match_id)
             logger.info(f"[>] Resuming from match: {oldest_match_id}, gameEndTimestamp: {oldest_match_end_timestamp_ms}")
