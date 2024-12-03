@@ -48,7 +48,7 @@ class RiotApiService:
         arguments = {**locals()}
         del arguments['self']
         query_params = construct_query_params(**arguments)
-        resource = f"/lol/match/v5/matches/by-puuid/{config.secrets['puuid']}/ids" + query_params
+        resource = f"/lol/match/v5/matches/by-puuid/{config.riot_api['puuid']}/ids" + query_params
         return await self._GET(resource=resource)
 
     async def get_match_statistics(self, match_id):

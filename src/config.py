@@ -8,9 +8,13 @@ rate_limits = dict(
     per_minute=50 - 3,
 )
 
-secrets = dict(
+riot_api = dict(
     puuid=os.getenv('LOL_PUUID'),
-    api_key=os.getenv('RIOT_TOKEN'),
+    match_snapshot=os.getenv('LOL_MATCH_SNAPSHOT'),
+)
+
+secrets = dict(
+    api_key=os.getenv('API_KEY'),
 )
 
 postgres = dict(

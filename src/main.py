@@ -20,13 +20,14 @@ riot_api_service = None
 exec = None
 
 
-async def run_tasks(tasks: list[asyncio.Task]):
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for idx, result in enumerate(results):
-        if isinstance(result, Exception):
-            err_msg = f"[!] An error occurred for task {tasks[idx].get_name()}: {result}"
-            logger.error(err_msg)
-            print(err_msg)
+async def run_tasks(tasks: list[asyncio.Task], return_exceptions=True):
+    results = await asyncio.gather(*tasks, return_exceptions=return_exceptions)
+    if return_exceptions:
+        for idx, result in enumerate(results):
+            if isinstance(result, Exception):
+                err_msg = f"[!] An error occurred for task {tasks[idx].get_name()}: {result}"
+                logger.error(err_msg)
+                print(err_msg)
 
 
 # ===>===>===> FEATURES <===<===<===
@@ -68,7 +69,7 @@ async def export():
     # create 1 worker to write the statistics to a CSV file
     tasks.append(
         asyncio.create_task(
-            ExportStatisticsWorker.run_write(read_tasks_count, match_data_queue),
+            ExportStatisticsWorker().run_write(read_tasks_count, match_data_queue),
             name="ExportStatisticsWorker-Write",
         )
     )
@@ -77,11 +78,11 @@ async def export():
     for _ in range(read_tasks_count):
         tasks.append(
             asyncio.create_task(
-                ExportStatisticsWorker.run_read(match_files_queue, match_data_queue),
+                ExportStatisticsWorker().run_read(match_files_queue, match_data_queue),
                 name="ExportStatisticsWorker-Read",
             )
         )
-    await run_tasks(tasks)
+    await run_tasks(tasks, return_exceptions=False)
 
 
 async def main():
