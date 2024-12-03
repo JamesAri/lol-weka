@@ -7,6 +7,11 @@ logger = logging.getLogger(__name__)
 
 
 async def shutdown(signal, loop):
+    """
+    Running code -> signal -> signal handler -> shutdown -> canceling tasks ->
+    -> gathering (waiting for) canceling tasks (cancelling triggers 'finally' blocks in tasks) -> 
+    -> printing any unhandled exceptions -> stopping the event loop.
+    """
     logger.warning(f"[!] Received exit signal {signal.name}...")
 
     tasks = [t for t in asyncio.all_tasks() if t is not
@@ -48,8 +53,10 @@ def run_event_loop(main):
             # Main task finished, stop the loop
             loop.stop()
         except asyncio.CancelledError:
-            # This could be from signal handlers
-            # TODO: test
+            # This could be from signal handlers:
+            # Signal -> calls our signal handlers (shutdown function) ->
+            # -> shutdown fn cancels all tasks -> even the main task gets cancelled ->
+            # -> we catch the CancelledError here and let the shutdown fn handle the cleanup
             logger.warning("[*] Main task cancelled")
         except:
             # We got unhandled exception/error in the main task
