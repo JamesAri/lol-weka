@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict
+from typing import List
 import os
 import logging
 import json
@@ -16,16 +16,22 @@ logger = logging.getLogger(__name__)
 class ExportStatisticsWorker:
 
     @classmethod
-    def validate_match_file(cls, json_match_filepath: str):
-        if not json_match_filepath.endswith('.json'):
-            raise ValueError(f"[!] The file {json_match_filepath} is not a JSON file.")
+    def __transform_match_data(cls, match_dto: MatchDto) -> List:
+        return [
+            match_dto.match_id,
+            datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%Y-%m-%d %H:%M:%S')
+        ]
 
     @classmethod
-    async def run_read(cls, filepaths_queue: asyncio.Queue, match_data_queue: asyncio.Queue):
+    async def run_read(cls, filepaths_queue: asyncio.Queue[str], match_data_queue: asyncio.Queue):
         try:
             while not filepaths_queue.empty():
                 json_match_filepath = await filepaths_queue.get()
-                cls.validate_match_file(json_match_filepath)
+
+                if not json_match_filepath.endswith('.json'):
+                    logger.warning(f"[!] The file {json_match_filepath} is not a JSON file, skipping")
+                    filepaths_queue.task_done()
+                    continue
 
                 async with aiofiles.open(json_match_filepath, mode='r') as file:
                     try:
@@ -36,10 +42,7 @@ class ExportStatisticsWorker:
                         continue
 
                 match_dto = MatchDto(riot_match_dto=data)
-                match_id = match_dto.match_id
-                match_created_datetime = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%Y-%m-%d %H:%M:%S')
-
-                match_data = dict(match_id=[match_id], date=[match_created_datetime])
+                match_data = cls.__transform_match_data(match_dto)
                 await match_data_queue.put(match_data)
 
                 filepaths_queue.task_done()
@@ -67,7 +70,7 @@ class ExportStatisticsWorker:
                 await writer.writerow(['match_id', 'date'])
 
                 while True:
-                    data: Dict[Any] = await match_data_queue.get()
+                    data = await match_data_queue.get()
                     if data is None:
                         none_marks_read += 1
                         if none_marks_read < number_of_producers:
@@ -76,7 +79,7 @@ class ExportStatisticsWorker:
                         logger.info("[*] Export to csv finished!")
                         break
 
-                    await writer.writerow(data.values())
+                    await writer.writerow(data)
                     match_data_queue.task_done()
 
             logger.info(f"[*] Exported matches statistics to {os.path.abspath(export_filename)}")
