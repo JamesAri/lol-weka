@@ -15,12 +15,10 @@ class FetchMatchesWorker:
     riot_api_service: RiotApiService
     cur: psycopg.cursor
     matches_repository: MatchesRepository = MatchesRepository()  # TODO: do this via Dependency Injection
-    should_resume: bool
 
-    def __init__(self, cur, riot_api_service: RiotApiService, should_resume: bool = False):
+    def __init__(self, cur, riot_api_service: RiotApiService):
         self.cur = cur
         self.riot_api_service = riot_api_service
-        self.should_resume = should_resume
 
     async def __resumed_timestamp(self) -> int | None:
         """ 
@@ -34,10 +32,10 @@ class FetchMatchesWorker:
             return get_next_timestamp(oldest_match_end_timestamp_ms)
         return None
 
-    async def run(self, queue: asyncio.Queue):
+    async def run(self, queue: asyncio.Queue, should_resume: bool = False):
         try:
             end_time = None
-            if self.should_resume:
+            if should_resume:
                 end_time = await self.__resumed_timestamp(cur=self.cur)
 
             while True:
