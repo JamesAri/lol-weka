@@ -5,7 +5,10 @@ from typing import Dict
 
 class MatchDto:
     def __init__(self, riot_match_dto: Dict):
-        self.__parse_riot_match_dto(riot_match_dto)
+        try:
+            self.__parse_riot_match_dto(riot_match_dto)
+        except KeyError as e:
+            raise ValueError(f"[!] The Riot Match DTO is missing a required key: {e}")
 
     @staticmethod
     def from_riot_match_dto(riot_match_dto: Dict) -> 'MatchDto':
@@ -18,7 +21,6 @@ class MatchDto:
         metadata_dto = riot_match_dto['metadata']
 
         self.match_id = metadata_dto['matchId']
-        self.end_of_game_result = info_dto['endOfGameResult']
         self.game_mode = info_dto['gameMode']
         self.game_creation = info_dto['gameCreation']
         self.game_start_timestamp = info_dto['gameStartTimestamp']
