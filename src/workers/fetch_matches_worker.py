@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import psycopg
 
 from db.repository.matches_repository import MatchesRepository
 from services.riot_api_service import RiotApiService
@@ -12,10 +13,12 @@ logger = logging.getLogger(__name__)
 class FetchMatchesWorker:
 
     riot_api_service: RiotApiService
+    cur: psycopg.cursor
     matches_repository: MatchesRepository = MatchesRepository()  # TODO: do this via Dependency Injection
     should_resume: bool
 
-    def __init__(self, riot_api_service: RiotApiService, should_resume: bool = False):
+    def __init__(self, cur, riot_api_service: RiotApiService, should_resume: bool = False):
+        self.cur = cur
         self.riot_api_service = riot_api_service
         self.should_resume = should_resume
 
@@ -35,7 +38,7 @@ class FetchMatchesWorker:
         try:
             end_time = None
             if self.should_resume:
-                end_time = await self.__resumed_timestamp(cur=self.matches_repository.cur)
+                end_time = await self.__resumed_timestamp(cur=self.cur)
 
             while True:
                 # Fetch 100 matches at a time
