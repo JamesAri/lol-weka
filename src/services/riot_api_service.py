@@ -1,9 +1,11 @@
 from functools import wraps
 import logging
+import aiohttp
 
 from utils.requests import construct_query_params
 from utils.throttled_task_runner import ThrottledTaskRunner, RateLimit
 import config
+from errors import MatchDataNotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +14,11 @@ class RiotApiService:
 
     __ttr: ThrottledTaskRunner
 
+    session: aiohttp.ClientSession
+
     def __init__(self, session):
         self.session = session
+        self.headers = {"X-Riot-Token": config.secrets['api_key']}
         rate_limits = [
             RateLimit(value=config.rate_limits['per_second'], time_window=1),
             RateLimit(value=config.rate_limits['per_minute'], time_window=60),
@@ -28,11 +33,14 @@ class RiotApiService:
 
     @rate_limited
     async def _GET(self, resource):
-        headers = {"X-Riot-Token": config.secrets['api_key']}
-        async with self.session.get(url=resource, headers=headers) as response:
+        async with self.session.get(url=resource, headers=self.headers) as response:
             logger.info(f"[>] GET {response.url}")
             res = await response.json()
-            if response.status != 200:
+            if response.status == 404:
+                # Data not found, happens for older matches that are no longer available.
+                logger.warning(f"[^] 404 - Data not found: {res} for {response.url}")
+                raise MatchDataNotFoundException
+            elif response.status != 200:
                 raise Exception(f"Error: {res}")
             return res
 
@@ -48,5 +56,8 @@ class RiotApiService:
         return await self._GET(resource=resource)
 
     async def get_match_end_timestamp(self, match_id) -> int:
-        stats = await self.get_match_statistics(match_id)
-        return int(stats['info']['gameEndTimestamp'])
+        try:
+            stats = await self.get_match_statistics(match_id)
+            return int(stats['info']['gameEndTimestamp'])
+        except TypeError:
+            raise RuntimeError(f"Got malformed response for match {match_id}")
