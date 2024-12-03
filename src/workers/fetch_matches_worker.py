@@ -36,7 +36,7 @@ class FetchMatchesWorker:
         try:
             end_time = None
             if should_resume:
-                end_time = await self.__resumed_timestamp(cur=self.cur)
+                end_time = await self.__resumed_timestamp()
 
             while True:
                 # Fetch 100 matches at a time
