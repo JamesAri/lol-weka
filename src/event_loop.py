@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 async def shutdown(signal, loop):
-    logger.warning(f"Received exit signal {signal.name}...")
+    logger.warning(f"[!] Received exit signal {signal.name}...")
 
     tasks = [t for t in asyncio.all_tasks() if t is not
              asyncio.current_task()]
@@ -15,15 +15,19 @@ async def shutdown(signal, loop):
     for task in tasks:
         task.cancel()  # tasks should cleanup in their 'finally' blocks
 
-    logger.info(f"Cancelling {len(tasks)} outstanding tasks")
+    logger.info(f"[-] Cancelling {len(tasks)} outstanding tasks")
 
     try:
-        # TODO: check task(s) results (and exceptions/errors)
-        await asyncio.gather(*tasks, return_exceptions=True)
-    except asyncio.CancelledError:
-        logger.warning("A task was forcibly cancelled during shutdown")
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    logger.info("Stopping the event loop")
+        for idx, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"[!] Task {tasks[idx].get_name()} raised an exception during its execution: {result}")
+
+    except asyncio.CancelledError:
+        logger.warning("[!] A task was forcibly cancelled during shutdown")
+
+    logger.info("[*] Stopping the event loop")
     loop.stop()
 
 
@@ -43,12 +47,13 @@ def run_event_loop(main):
             logger.info("[*] Main task finished")
             # Main task finished, stop the loop
             loop.stop()
-        except asyncio.CancelledError as e:
+        except asyncio.CancelledError:
             # This could be from signal handlers
+            # TODO: test
             logger.warning("[*] Main task cancelled")
         except:
             # We got unhandled exception/error in the main task
-            logger.critical("An unhandled error occurred in the main task")
+            logger.critical("[!] An unhandled error occurred in the main task", exc_info=True)
             loop.stop()
         # Note: we cannot use 'finally' block here, because the main task could
         # be still "cancelling" from signal handlers.
