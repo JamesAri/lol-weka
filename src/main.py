@@ -1,3 +1,6 @@
+from tqdm import tqdm
+import json
+import os
 import logging
 import asyncio
 import aiohttp
@@ -57,7 +60,6 @@ async def fetch_worker(queue: asyncio.Queue, end_time=None):
 
 async def store_worker(exec, queue: asyncio.Queue):
     while True:
-        # TODO: hanging after completion for now, fix this
         matches = await queue.get()
         if matches is None:
             logger.info("[*] No more matches to store")
@@ -67,11 +69,19 @@ async def store_worker(exec, queue: asyncio.Queue):
         queue.task_done()
 
 
-async def fetch_statistics(cur):
-    # TODO:
-    # - create table for statistics
-    # - make workers to process the statistics and save them to db (asyncio.Queue)
-    pass
+async def fetch_statistics(cur, from_match_id=None):
+    all_matches = await matches_repository.get_matches_older_than(cur=cur, match_id=from_match_id)
+    logger.info(f"[+] Began processing {len(all_matches)} matches")
+
+    all_matches = tqdm(all_matches)
+    os.makedirs('tmp', exist_ok=True)
+    for match_id in all_matches:
+        logger.info(f"[>] Processing match: {match_id}")
+        all_matches.set_description("[>] Processing match: %s" % match_id)
+        statistics = await riot_api_service.get_match_statistics(match_id=match_id)
+        with open(f"tmp/{match_id}", 'x', encoding='utf-8') as f:
+            json.dump(statistics, f, ensure_ascii=False, indent=4)
+            logger.info(f"[+] Match {match_id} statistics dumped to file {os.path.abspath(f.name)}")
 
 
 async def resumed_timestamp(cur) -> int | None:
@@ -109,7 +119,7 @@ async def main():
             await asyncio.gather(fetching_task, storing_task)
 
         if toggles.FETCH_STATISTICS_TOGGLE:
-            await fetch_statistics(cur=cur)
+            await fetch_statistics(cur=cur, from_match_id=None)
 
     except Exception as e:
         logger.exception(f"An error occurred:\n{e}")
