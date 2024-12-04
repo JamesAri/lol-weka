@@ -51,8 +51,6 @@ def __ensure_directories_exist():
 HEADERS = __parse_headers_from_snapshot()
 EXPORT_FILENAME = __ensure_directories_exist()
 
-HEADERS.append('match_date')
-
 
 class ExportStatisticsWorker:
 
@@ -110,7 +108,7 @@ class ExportStatisticsWorker:
             async with aiofiles.open(self.export_filename, 'w') as f:
                 writer = AsyncWriter(f)
 
-                await writer.writerow(self.data_keys)
+                await writer.writerow(self.data_keys + ['match_date'])
 
                 while True:
                     data = await match_data_queue.get()
