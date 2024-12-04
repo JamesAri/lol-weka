@@ -51,15 +51,14 @@ def __ensure_directories_exist():
 HEADERS = __parse_headers_from_snapshot()
 EXPORT_FILENAME = __ensure_directories_exist()
 
+HEADERS.append('match_date')
+
 
 class ExportStatisticsWorker:
 
     data_keys: list[str] = HEADERS  # TODO: FIX THIS
 
     export_filename: str = EXPORT_FILENAME  # TODO: FIX THIS
-
-    def __init__(self):
-        self.data_keys.append('match_date')
 
     def __transform_match_data(self, match_data) -> List[str]:
         match_dto = MatchDto(match_data)
