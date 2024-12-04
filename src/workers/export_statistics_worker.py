@@ -36,7 +36,7 @@ def __parse_headers_from_snapshot() -> List[str]:
     if data is None:
         raise ValueError(f"[!] Corrupted snapshot file {match_snapshot}")
 
-    match_snapshot_dto = MatchDto(riot_match_dto=data)
+    match_snapshot_dto = MatchDto(riot_match_dto=data, participant_puuid='any')
     return match_snapshot_dto.get_keys()
 
 

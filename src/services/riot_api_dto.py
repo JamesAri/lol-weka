@@ -7,20 +7,27 @@ import config
 
 class MatchDto:
 
+    participant_puuid: str
     participant: Dict
 
-    def __init__(self, riot_match_dto: Dict):
+    def __init__(self, riot_match_dto: Dict, participant_puuid: str | None = None):
+        if participant_puuid is None:
+            self.participant_puuid = config.riot_api['puuid']
+        else:
+            self.participant_puuid = participant_puuid
+
         self.__parse_riot_match_dto(riot_match_dto)
 
     def __filter_local_participant(self, info_dto: Dict):
-        puuid = config.riot_api['puuid']
-
+        if self.participant_puuid == 'any':
+            self.participant = info_dto['participants'][0]
+            return
         for participant in info_dto['participants']:
-            if participant['puuid'] == puuid:
+            if participant['puuid'] == self.participant_puuid:
                 self.participant = participant
                 break
         if self.participant is None:
-            raise ValueError(f"[!] The participant with puuid {puuid} was not found in the match data")
+            raise ValueError(f"[!] The participant with puuid {self.participant_puuid:} was not found in the match data")
 
     def get_keys(self) -> List[str]:
         return [
