@@ -1,14 +1,14 @@
 class MatchesRepository:
 
     async def save_matches(self, exec, matches):
-        query = "INSERT INTO matches (match_string) VALUES (%s)"
+        query = "INSERT INTO matches (match_id) VALUES (%s) ON CONFLICT (match_id) DO NOTHING;"
         await exec.executemany(query=query, params_seq=matches)
 
     async def get_all_matches(self, cur) -> list[str]:
         """
         Get all matches from the database.
         """
-        await cur.execute("SELECT match_string FROM matches ORDER BY match_string DESC")
+        await cur.execute("SELECT match_id FROM matches ORDER BY match_id DESC")
         rows = await cur.fetchall()
         return [row[0] for row in rows]
 
@@ -18,7 +18,7 @@ class MatchesRepository:
         """
         if match_id is None:
             return await self.get_all_matches(cur)
-        await cur.execute("SELECT match_string FROM matches WHERE match_string < %s ORDER BY match_string DESC", (match_id,))
+        await cur.execute("SELECT match_id FROM matches WHERE match_id < %s ORDER BY match_id DESC", (match_id,))
         rows = await cur.fetchall()
         return [row[0] for row in rows]
 
@@ -26,6 +26,6 @@ class MatchesRepository:
         """
         Get the oldest match id from the database.
         """
-        await cur.execute("SELECT match_string FROM matches ORDER BY match_string ASC LIMIT 1")
+        await cur.execute("SELECT match_id FROM matches ORDER BY match_id ASC LIMIT 1")
         row = await cur.fetchone()
         return row[0] if row else None

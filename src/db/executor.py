@@ -3,9 +3,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# Execute the queries and commit the changes on success to the database,
-# otherwise rollback the changes.
 class Executor:
+    """
+    Execute the queries and commit the changes on success to the database,
+    otherwise rollback the changes
+
+    Closing a connection without committing the changes first will
+    cause an implicit rollback to be performed - https://www.psycopg.org/docs/connection.html
+    """
+
     def __init__(self, conn, cur):
         self.conn = conn
         self.cur = cur
