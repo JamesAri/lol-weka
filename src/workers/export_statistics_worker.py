@@ -54,8 +54,8 @@ class ExportStatisticsWorker:
         match_dto_dict = match_dto.get_as_dict()
 
         # Compute extended headers
-        match_dto_dict['match_date'] = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%Y-%m-%d %H:%M:%S')
-        match_dto_dict['match_hour'] = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%H')
+        match_dto_dict['match_date'] = datetime.fromtimestamp(match_dto_dict['game_creation']/1000).strftime('%Y-%m-%d %H:%M:%S')
+        match_dto_dict['match_hour'] = datetime.fromtimestamp(match_dto_dict['game_creation']/1000).strftime('%H')
 
         # Filter out unwanted game modes
         game_mode = match_dto_dict.get('game_mode', '')
