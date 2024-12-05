@@ -8,55 +8,31 @@ import aiofiles
 from aiocsv import AsyncWriter
 
 from services.riot_api import MatchDto
+from utils.riot_match_files import parse_headers_from_snapshot
 import config
 
 logger = logging.getLogger(__name__)
 
-# TODO: this whole file needs to be refactored...
-
-
-def __read_match_file(json_match_filepath: str) -> Dict:
-    if not json_match_filepath.endswith('.json'):
-        logger.warning(f"[!] The file {json_match_filepath} is not a JSON file, skipping")
-        return None
-
-    with open(json_match_filepath, 'r') as file:
-        try:
-            data = json.load(file)
-            return data
-        except json.JSONDecodeError as json_error:
-            logger.error(f"[!] Error decoding JSON from file {json_match_filepath}: {json_error}")
-            return None
-
-
-def __parse_headers_from_snapshot() -> List[str]:
-    match_snapshot = config.riot_api['match_snapshot']
-    data = __read_match_file(match_snapshot)
-
-    if data is None:
-        raise ValueError(f"[!] Corrupted snapshot file {match_snapshot}")
-
-    match_snapshot_dto = MatchDto(data, participant_puuid='any')
-    return match_snapshot_dto.get_keys()
-
-
-def __ensure_directories_exist():
-    # CSV export directory
-    csv_export_dir = config.exports['csv_export_dir']
-    os.makedirs(csv_export_dir, exist_ok=True)
-    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    return os.path.abspath(f'{csv_export_dir}/csv_export_{timestamp}.csv')
-
-
-HEADERS = __parse_headers_from_snapshot()
-EXPORT_FILENAME = __ensure_directories_exist()
-
 
 class ExportStatisticsWorker:
 
-    data_keys: list[str] = HEADERS  # TODO: FIX THIS
+    _instance = None
 
-    export_filename: str = EXPORT_FILENAME  # TODO: FIX THIS
+    data_keys: list[str]
+    export_filename: str
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(ExportStatisticsWorker, cls).__new__(cls)
+            cls.data_keys = parse_headers_from_snapshot(config.riot_api['match_snapshot'])
+            cls._instance.__ensure_export_filename()
+        return cls._instance
+
+    def __ensure_export_filename(self):
+        csv_export_dir = config.exports['csv_export_dir']
+        os.makedirs(csv_export_dir, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        self.export_filename = os.path.abspath(f'{csv_export_dir}/csv_export_{timestamp}.csv')
 
     def __transform_match_data(self, match_data) -> List[str] | None:
         match_dto = MatchDto(match_data)
@@ -91,6 +67,7 @@ class ExportStatisticsWorker:
                 json_match_filepath = await filepaths_queue.get()
                 data = await self.__read_match_file(json_match_filepath)
 
+                # Unreadable match data
                 if data is None:
                     filepaths_queue.task_done()
                     continue

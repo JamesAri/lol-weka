@@ -34,9 +34,7 @@ class FetchMatchesWorker:
 
     async def run(self, queue: asyncio.Queue, should_resume: bool = False):
         try:
-            end_time = None
-            if should_resume:
-                end_time = await self.__resumed_timestamp()
+            end_time = await self.__resumed_timestamp() if should_resume else None
 
             while True:
                 # Fetch 100 matches at a time
