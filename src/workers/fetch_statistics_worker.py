@@ -23,8 +23,8 @@ class FetchStatisticsWorker:
 
     async def run(self, last_match_id=None):
         try:
-            matches_dir = config.exports['json_matches_dir']
-            os.makedirs(matches_dir, exist_ok=True)
+            match_files_dir = config.exports['match_files_dir']
+            os.makedirs(match_files_dir, exist_ok=True)
 
             all_matches = await self.matches_repository.get_matches_older_than(cur=self.cur, match_id=last_match_id)
             logger.info(f"[+] Began processing {len(all_matches)} matches: {all_matches}")
@@ -35,7 +35,7 @@ class FetchStatisticsWorker:
                 all_matches.set_description("[>] Processing match: %s" % match_id)
                 statistics = await self.riot_api_service.get_match_statistics(match_id=match_id)
                 # TODO: implement streaming, will require changes in riot api service
-                async with aiofiles.open(f"{matches_dir}/{match_id}.json", 'x', encoding='utf-8') as f:
+                async with aiofiles.open(f"{match_files_dir}/{match_id}.json", 'x', encoding='utf-8') as f:
                     json_string = json.dumps(statistics, ensure_ascii=False, indent=4)
                     await f.write(json_string)
                     logger.info(f"[+] Match {match_id} statistics dumped to file {os.path.abspath(f.name)}")

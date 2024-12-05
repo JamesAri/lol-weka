@@ -16,13 +16,11 @@ def read_match_file_sync(json_match_filepath: str) -> Dict:
             raise ValueError(f"[!] Error decoding JSON from file {json_match_filepath}: {json_error}")
 
 
-def parse_headers_from_snapshot(snapshot_file) -> List[str]:
-    match_snapshot = snapshot_file
-
+def parse_headers_from_snapshot(snapshot_filename: str) -> List[str]:
     try:
-        data = read_match_file_sync(match_snapshot)
+        data = read_match_file_sync(snapshot_filename)
     except ValueError as e:
-        raise ValueError(f"[!] Error parsing headers from snapshot file {snapshot_file}: {e}")
+        raise ValueError(f"[!] Error parsing headers from snapshot file {snapshot_filename}: {e}")
 
     match_snapshot_dto = MatchDto(data, participant_puuid='any')
     return match_snapshot_dto.get_keys()

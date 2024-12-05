@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List
 import os
@@ -14,17 +15,30 @@ import config
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class Headers():
+
+    headers: List[str]
+
+    def extend_headers(self, new_headers: List[str]):
+        self.headers.extend(new_headers)
+
+    def get_list(self) -> List[str]:
+        return self.headers
+
+
 class ExportStatisticsWorker:
 
     _instance = None
 
-    data_keys: list[str]
+    headers: Headers
     export_filename: str
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(ExportStatisticsWorker, cls).__new__(cls)
-            cls.data_keys = parse_headers_from_snapshot(config.riot_api['match_snapshot'])
+            cls.headers = Headers(parse_headers_from_snapshot(config.riot_api['match_snapshot']))
+            cls.headers.extend_headers(['match_date', 'match_hour'])
             cls._instance.__ensure_export_filename()
         return cls._instance
 
@@ -36,17 +50,19 @@ class ExportStatisticsWorker:
 
     def __transform_match_data(self, match_data) -> List[str] | None:
         match_dto = MatchDto(match_data)
+        match_dto_dict = match_dto.get_as_dict()
+
+        # Compute extended headers
         match_date = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%Y-%m-%d %H:%M:%S')
         match_hour = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%H')
 
-        match_data_dict = match_dto.get_as_dict()
-
-        game_mode = match_data_dict.get('game_mode', '')
+        # Filter out unwanted game modes
+        game_mode = match_dto_dict.get('game_mode', '')
         is_valid_game_mode = game_mode == 'CLASSIC' or game_mode == 'ARAM'
         if is_valid_game_mode is False:
             return None
 
-        return [match_data_dict.get(key, '') for key in self.data_keys] + [match_date, match_hour]
+        return [match_dto_dict.get(key, '') for key in self.headers.get_list()] + [match_date, match_hour]
 
     async def __read_match_file(self, json_match_filepath: str) -> Dict:
         if not json_match_filepath.endswith('.json'):
@@ -93,7 +109,7 @@ class ExportStatisticsWorker:
             async with aiofiles.open(self.export_filename, 'w') as f:
                 writer = AsyncWriter(f)
 
-                await writer.writerow(self.data_keys + ['match_date', 'match_hour'])
+                await writer.writerow(self.headers.get_list())
 
                 while True:
                     data = await match_data_queue.get()
