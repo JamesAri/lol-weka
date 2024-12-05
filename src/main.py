@@ -10,7 +10,7 @@ from event_loop import run_event_loop
 from utils.timestamps import get_next_timestamp
 from utils.fs_helpers import get_filepaths_from_dir
 from workers import StoreMatchesWorker, FetchStatisticsWorker, FetchMatchesWorker, ExportStatisticsWorker
-from services.riot_api_service import RiotApiService
+from services.riot_api import RiotApiService
 
 init_logger()
 logger = logging.getLogger(__name__)

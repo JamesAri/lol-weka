@@ -6,7 +6,7 @@ import psycopg
 import aiofiles
 
 from db.repository.matches_repository import MatchesRepository
-from services.riot_api_service import RiotApiService
+from services.riot_api import RiotApiService
 import config
 
 logger = logging.getLogger(__name__)

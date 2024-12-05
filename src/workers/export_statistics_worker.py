@@ -7,7 +7,7 @@ import asyncio
 import aiofiles
 from aiocsv import AsyncWriter
 
-from services.riot_api_dto import MatchDto
+from services.riot_api import MatchDto
 import config
 
 logger = logging.getLogger(__name__)
@@ -58,13 +58,19 @@ class ExportStatisticsWorker:
 
     export_filename: str = EXPORT_FILENAME  # TODO: FIX THIS
 
-    def __transform_match_data(self, match_data) -> List[str]:
+    def __transform_match_data(self, match_data) -> List[str] | None:
         match_dto = MatchDto(match_data)
         match_date = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%Y-%m-%d %H:%M:%S')
+        match_hour = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%H')
 
         match_data_dict = match_dto.get_as_dict()
 
-        return [match_data_dict.get(key, 'N/A') for key in self.data_keys] + [match_date]
+        game_mode = match_data_dict.get('game_mode', '')
+        is_valid_game_mode = game_mode == 'CLASSIC' or game_mode == 'ARAM'
+        if is_valid_game_mode is False:
+            return None
+
+        return [match_data_dict.get(key, '') for key in self.data_keys] + [match_date, match_hour]
 
     async def __read_match_file(self, json_match_filepath: str) -> Dict:
         if not json_match_filepath.endswith('.json'):
@@ -90,6 +96,12 @@ class ExportStatisticsWorker:
                     continue
 
                 match_data = self.__transform_match_data(data)
+
+                # Unwanted match data
+                if (match_data is None):
+                    filepaths_queue.task_done()
+                    continue
+
                 await match_data_queue.put(match_data)
                 filepaths_queue.task_done()
 
@@ -108,7 +120,7 @@ class ExportStatisticsWorker:
             async with aiofiles.open(self.export_filename, 'w') as f:
                 writer = AsyncWriter(f)
 
-                await writer.writerow(self.data_keys + ['match_date'])
+                await writer.writerow(self.data_keys + ['match_date', 'match_hour'])
 
                 while True:
                     data = await match_data_queue.get()

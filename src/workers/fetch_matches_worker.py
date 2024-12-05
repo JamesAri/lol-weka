@@ -3,7 +3,7 @@ import logging
 import psycopg
 
 from db.repository.matches_repository import MatchesRepository
-from services.riot_api_service import RiotApiService
+from services.riot_api import RiotApiService
 from utils.timestamps import get_next_timestamp
 from errors import MatchDataNotFoundException
 

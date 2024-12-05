@@ -69,6 +69,7 @@ class MatchDto:
             self.__filter_local_participant(info_dto)
             self.participant.pop('challenges', None)
             self.participant.pop('perks', None)
+            self.participant.pop('missions', None)
 
         except KeyError as e:
             raise KeyError(f"[!] The Riot Match DTO ({self.match_id}) is missing a required key: {e}")
