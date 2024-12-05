@@ -10,48 +10,23 @@ class MatchDto:
     participant_puuid: str
     participant: Dict
 
-    def __init__(self, riot_match_dto: Dict, participant_puuid: str | None = None):
-        if participant_puuid is None:
-            self.participant_puuid = config.riot_api['puuid']
-        else:
-            self.participant_puuid = participant_puuid
+    def __init__(self, riot_match_data: Dict, participant_puuid: str | None = None):
+        self.participant_puuid = config.riot_api['puuid'] if participant_puuid is None else participant_puuid
+        self.__parse_riot_match_data(riot_match_data)
 
-        self.__parse_riot_match_dto(riot_match_dto)
-
-    def __filter_local_participant(self, info_dto: Dict):
+    def __parse_participant(self, info_dto: Dict):
         if self.participant_puuid == 'any':
             self.participant = info_dto['participants'][0]
-            return
-        for participant in info_dto['participants']:
-            if participant['puuid'] == self.participant_puuid:
-                self.participant = participant
-                break
+        else:
+            for participant in info_dto['participants']:
+                if participant['puuid'] == self.participant_puuid:
+                    self.participant = participant
+                    break
+
         if self.participant is None:
             raise ValueError(f"[!] The participant with puuid {self.participant_puuid:} was not found in the match data")
 
-    def get_keys(self) -> List[str]:
-        return [
-            'match_id',
-            'game_mode',
-            'game_creation',
-            'game_start_timestamp',
-            'game_end_timestamp',
-            'game_duration',
-            *self.participant.keys()
-        ]
-
-    def get_as_dict(self) -> Dict[str, Any]:
-        return {
-            'match_id': self.match_id,
-            'game_mode': self.game_mode,
-            'game_creation': self.game_creation,
-            'game_start_timestamp': self.game_start_timestamp,
-            'game_end_timestamp': self.game_end_timestamp,
-            'game_duration': self.game_duration,
-            **self.participant
-        }
-
-    def __parse_riot_match_dto(self, riot_match_dto: Dict):
+    def __parse_riot_match_data(self, riot_match_dto: Dict):
         try:
             # Base data objects
             info_dto = riot_match_dto['info']
@@ -66,10 +41,24 @@ class MatchDto:
             self.game_duration = info_dto['gameDuration']
 
             # Participant data may differ based on game version
-            self.__filter_local_participant(info_dto)
+            self.__parse_participant(info_dto)
             self.participant.pop('challenges', None)
             self.participant.pop('perks', None)
             self.participant.pop('missions', None)
 
         except KeyError as e:
             raise KeyError(f"[!] The Riot Match DTO ({self.match_id}) is missing a required key: {e}")
+
+    def get_keys(self) -> List[str]:
+        return list(self.get_as_dict().keys())
+
+    def get_as_dict(self) -> Dict[str, Any]:
+        return {
+            'match_id': self.match_id,
+            'game_mode': self.game_mode,
+            'game_creation': self.game_creation,
+            'game_start_timestamp': self.game_start_timestamp,
+            'game_end_timestamp': self.game_end_timestamp,
+            'game_duration': self.game_duration,
+            **self.participant
+        }

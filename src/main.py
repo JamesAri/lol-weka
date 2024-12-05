@@ -32,7 +32,6 @@ async def run_tasks(tasks: list[asyncio.Task], return_exceptions=True):
 
 # ===>===>===> FEATURES <===<===<===
 
-
 async def fetch_matches():
     matches_queue = asyncio.Queue(5)
     match_fetching_task = asyncio.create_task(
@@ -58,31 +57,34 @@ async def fetch_statistics():
 async def export():
     match_files_queue = asyncio.Queue()
     match_data_queue = asyncio.Queue(1)
+
     filenames = get_filepaths_from_dir(config.exports['json_matches_dir'])
     for filename in filenames:
         match_files_queue.put_nowait(filename)
-
     logger.info(f"[*] Generating csv export from {match_files_queue.qsize()} match files")
 
-    read_tasks_count = 5
-    tasks = []
-    # create 1 worker to write the statistics to a CSV file
-    tasks.append(
-        asyncio.create_task(
-            ExportStatisticsWorker().run_write(read_tasks_count, match_data_queue),
-            name="ExportStatisticsWorker-Write",
-        )
-    )
-
-    # create n workers to read statistics from JSON files
-    for _ in range(read_tasks_count):
-        tasks.append(
+    read_tasks = []
+    # start 5 tasks to read statistics from JSON files
+    for _ in range(5):
+        read_tasks.append(
             asyncio.create_task(
                 ExportStatisticsWorker().run_read(match_files_queue, match_data_queue),
                 name="ExportStatisticsWorker-Read",
             )
         )
-    await run_tasks(tasks, return_exceptions=False)
+
+    # start 1 task to write the statistics to a CSV file
+    write_task = asyncio.create_task(
+        ExportStatisticsWorker().run_write(match_data_queue),
+        name="ExportStatisticsWorker-Write",
+    )
+
+    await run_tasks(read_tasks, return_exceptions=False)
+
+    # Signal the end of the queue
+    await match_data_queue.put(None)
+
+    await write_task
 
 
 async def main():

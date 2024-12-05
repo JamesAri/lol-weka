@@ -36,7 +36,7 @@ def __parse_headers_from_snapshot() -> List[str]:
     if data is None:
         raise ValueError(f"[!] Corrupted snapshot file {match_snapshot}")
 
-    match_snapshot_dto = MatchDto(riot_match_dto=data, participant_puuid='any')
+    match_snapshot_dto = MatchDto(data, participant_puuid='any')
     return match_snapshot_dto.get_keys()
 
 
@@ -105,18 +105,14 @@ class ExportStatisticsWorker:
                 await match_data_queue.put(match_data)
                 filepaths_queue.task_done()
 
-            # Signal the end of the queue
-            await match_data_queue.put(None)
             logger.info("[*] Worker finished reading match files")
 
         except Exception as e:
             logger.exception(f"[!] An error occurred while reading match statistics: {e}")
             raise
 
-    async def run_write(self, number_of_producers: int, match_data_queue: asyncio.Queue):
+    async def run_write(self, match_data_queue: asyncio.Queue):
         try:
-            none_marks_read = 0
-
             async with aiofiles.open(self.export_filename, 'w') as f:
                 writer = AsyncWriter(f)
 
@@ -125,10 +121,6 @@ class ExportStatisticsWorker:
                 while True:
                     data = await match_data_queue.get()
                     if data is None:
-                        none_marks_read += 1
-                        if none_marks_read < number_of_producers:
-                            match_data_queue.task_done()
-                            continue
                         logger.info("[*] Export to csv finished!")
                         break
 
