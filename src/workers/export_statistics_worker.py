@@ -11,6 +11,7 @@ from aiocsv import AsyncWriter
 from services.riot_api import MatchDto
 from utils.riot_match_files import parse_headers_from_snapshot
 import config
+from errors import ParticipantNotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +49,13 @@ class ExportStatisticsWorker:
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         self.export_filename = os.path.abspath(f'{csv_export_dir}/csv_export_{timestamp}.csv')
 
-    def __transform_match_data(self, match_data) -> List[str] | None:
-        match_dto = MatchDto(match_data)
+    def __transform_match_data(self, match_data, puuid: str) -> List[str] | None:
+        match_dto = MatchDto(match_data, participant_puuid=puuid)
         match_dto_dict = match_dto.get_as_dict()
 
         # Compute extended headers
-        match_date = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%Y-%m-%d %H:%M:%S')
-        match_hour = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%H')
+        match_dto_dict['match_date'] = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%Y-%m-%d %H:%M:%S')
+        match_dto_dict['match_hour'] = datetime.fromtimestamp(match_dto.game_creation/1000).strftime('%H')
 
         # Filter out unwanted game modes
         game_mode = match_dto_dict.get('game_mode', '')
@@ -62,7 +63,7 @@ class ExportStatisticsWorker:
         if is_valid_game_mode is False:
             return None
 
-        return [match_dto_dict.get(key, '') for key in self.headers.get_list()] + [match_date, match_hour]
+        return [match_dto_dict.get(key, '') for key in self.headers.get_list()]
 
     async def __read_match_file(self, json_match_filepath: str) -> Dict:
         if not json_match_filepath.endswith('.json'):
@@ -88,14 +89,17 @@ class ExportStatisticsWorker:
                     filepaths_queue.task_done()
                     continue
 
-                match_data = self.__transform_match_data(data)
+                for puuid in config.PUUIDS:
+                    try:
+                        match_data = self.__transform_match_data(data, puuid)
+                        # Unwanted match data
+                        if (match_data is None):
+                            break
+                        await match_data_queue.put(match_data)
 
-                # Unwanted match data
-                if (match_data is None):
-                    filepaths_queue.task_done()
-                    continue
+                    except ParticipantNotFoundException:
+                        continue
 
-                await match_data_queue.put(match_data)
                 filepaths_queue.task_done()
 
             logger.info("[*] Worker finished reading match files")

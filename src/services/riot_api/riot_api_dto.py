@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 import config
+from errors import ParticipantNotFoundException
 
 # https://developer.riotgames.com/apis#match-v5/GET_getMatch
 
@@ -8,7 +9,7 @@ import config
 class MatchDto:
 
     participant_puuid: str
-    participant: Dict
+    participant: Dict = None
 
     def __init__(self, riot_match_data: Dict, participant_puuid: str | None = None):
         self.participant_puuid = config.riot_api['puuid'] if participant_puuid is None else participant_puuid
@@ -17,14 +18,14 @@ class MatchDto:
     def __parse_participant(self, info_dto: Dict):
         if self.participant_puuid == 'any':
             self.participant = info_dto['participants'][0]
-        else:
-            for participant in info_dto['participants']:
-                if participant['puuid'] == self.participant_puuid:
-                    self.participant = participant
-                    break
+            return
 
-        if self.participant is None:
-            raise ValueError(f"[!] The participant with puuid {self.participant_puuid:} was not found in the match data")
+        for participant in info_dto['participants']:
+            if participant['puuid'] == self.participant_puuid:
+                self.participant = participant
+                return
+
+        raise ParticipantNotFoundException(f"[!] The participant with puuid {self.participant_puuid:} was not found in the match data")
 
     def __parse_riot_match_data(self, riot_match_dto: Dict):
         try:

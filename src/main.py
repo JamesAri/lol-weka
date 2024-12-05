@@ -58,7 +58,7 @@ async def export():
     match_files_queue = asyncio.Queue()
     match_data_queue = asyncio.Queue(1)
 
-    filenames = get_filepaths_from_dir(config.exports['json_matches_dir'])
+    filenames = get_filepaths_from_dir(config.exports['match_files_dir'])
     for filename in filenames:
         match_files_queue.put_nowait(filename)
     logger.info(f"[*] Generating csv export from {match_files_queue.qsize()} match files")

@@ -38,3 +38,9 @@ exports = dict(
     csv_export_dir=os.getenv('CSV_EXPORT_DIR'),
     match_files_dir=os.getenv('LOL_MATCH_FILES_DIR'),
 )
+
+# TODO: make more generic
+PUUIDS = [
+    'FiB--8fS9Kzsy8zwtz0afbpDSFc1GPtSvnH9jqBkwWGABj1ZN2bRMU2rXar6M31jXBKLlo_sfVUT_w',
+    'YkhJDHjPwoRT6sBHoP8bDmIbWL5E5wZ5fOBjYZm9ACA2J5BkI_cbzZmBJMIH2ruLJxQwSLh1slBi7w'
+]
