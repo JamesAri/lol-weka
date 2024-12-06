@@ -38,10 +38,11 @@ class ExportStatisticsWorker:
         if cls._instance is None:
             cls._instance = super(ExportStatisticsWorker, cls).__new__(cls)
             cls.headers = Headers(parse_headers_from_snapshot(config.riot_api['match_snapshot']))
-            cls.headers.extend_headers(['match_date', 'match_hour'])
+            cls.headers.extend_headers(['matchDate', 'matchHour'])
             # move 'win' to the end (just so it's easier to find in the csv)
-            cls.headers.headers.remove('win')
-            cls.headers.extend_headers(['win'])
+            if 'win' in cls.headers.headers:
+                cls.headers.headers.remove('win')
+                cls.headers.extend_headers(['win'])
             cls._instance.__ensure_export_filename()
         return cls._instance
 
@@ -56,14 +57,14 @@ class ExportStatisticsWorker:
         match_dto_dict = match_dto.get_as_dict()
 
         # Filter out unwanted game modes
-        game_mode = match_dto_dict.get('game_mode', '')
+        game_mode = match_dto_dict.get('gameMode', '')
         is_valid_game_mode = game_mode == 'CLASSIC' or game_mode == 'ARAM'
         if is_valid_game_mode is False:
             return None
 
         # Compute extended headers
-        match_dto_dict['match_date'] = datetime.fromtimestamp(match_dto_dict['game_creation']/1000).strftime('%Y-%m-%d %H:%M:%S')
-        match_dto_dict['match_hour'] = datetime.fromtimestamp(match_dto_dict['game_creation']/1000).strftime('%H')
+        match_dto_dict['matchDate'] = datetime.fromtimestamp(match_dto_dict['gameCreation']/1000).strftime('%Y-%m-%d %H:%M:%S')
+        match_dto_dict['matchHour'] = datetime.fromtimestamp(match_dto_dict['gameCreation']/1000).strftime('%H')
 
         return [match_dto_dict.get(key, '') for key in self.headers.get_list()]
 
