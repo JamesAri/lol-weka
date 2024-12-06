@@ -56,20 +56,43 @@ class MatchDto:
             if len(info_dto['teams']) != 2:
                 return
 
-            team_id = self.participant['teamId']
+            # Merge participants into "team data"
+            friendly_team_id = self.participant['teamId']
             friendly_team = info_dto['teams'][0]
             enemy_team = info_dto['teams'][1]
 
-            if friendly_team['teamId'] != team_id:
+            if friendly_team['teamId'] != friendly_team_id:
                 friendly_team, enemy_team = enemy_team, friendly_team
 
+            for participant in info_dto['participants']:
+                if participant['puuid'] == self.participant_puuid:
+                    continue
+
+                for key in self.participant.keys():
+                    # won't filter bools
+                    if not isinstance(self.participant[key], (int, float, complex)):
+                        continue
+                    if key not in participant:
+                        continue
+
+                    if participant['teamId'] == friendly_team_id:
+                        if isinstance(self.participant[key], bool):
+                            if key != 'win':
+                                self.participant[key] = participant[key] if participant[key] else self.participant[key]
+                            continue
+                        self.participant[key] += participant[key]
+
+                    else:
+                        if isinstance(self.participant[key], bool):
+                            continue
+                        self.participant[key] -= participant[key]
+
             for objective, stats in friendly_team['objectives'].items():
-                self.teams[f'friendly_{objective}_kills'] = stats['kills']
-                self.teams[f'friendly_{objective}_first'] = stats['first']
+                self.teams[f'{objective}_kills'] = stats['kills']
+                self.teams[f'{objective}_first'] = stats['first']
 
             for objective, stats in enemy_team['objectives'].items():
-                self.teams[f'enemy_{objective}_kills'] = stats['kills']
-                self.teams[f'enemy_{objective}_first'] = stats['first']
+                self.teams[f'{objective}_kills'] -= stats['kills']
 
         except KeyError as e:
             raise KeyError(f"[!] The Riot Match DTO ({self.metadata['match_id']}) is missing a required key: {e}")
