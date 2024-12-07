@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List
 import os
@@ -9,64 +8,22 @@ import aiofiles
 from aiocsv import AsyncWriter
 
 from services.riot_api import MatchDto
-from utils.riot_match_files import parse_headers_from_snapshot
 import config
-from errors import ParticipantNotFoundException
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Headers():
-
-    headers: List[str]
-
-    def extend_headers(self, new_headers: List[str]):
-        self.headers.extend(new_headers)
-
-    def get_list(self) -> List[str]:
-        return self.headers
 
 
 class ExportStatisticsWorker:
     _instance = None
 
-    headers: Headers
+    headers: List[str] | None = None
     export_filename: str
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(ExportStatisticsWorker, cls).__new__(cls)
-            cls.headers = Headers(parse_headers_from_snapshot(config.riot_api['match_snapshot']))
-            cls.headers.extend_headers(['matchDate', 'matchHour'])
-            # move 'win' to the end (just so it's easier to find in the csv)
-            if 'win' in cls.headers.headers:
-                cls.headers.headers.remove('win')
-                cls.headers.extend_headers(['win'])
             cls._instance.__ensure_export_filename()
         return cls._instance
-
-    def __ensure_export_filename(self):
-        csv_export_dir = config.exports['csv_export_dir']
-        os.makedirs(csv_export_dir, exist_ok=True)
-        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-        self.export_filename = os.path.abspath(f'{csv_export_dir}/csv_export_{timestamp}.csv')
-
-    def __transform_match_data(self, match_data, puuid: str) -> List[str] | None:
-        match_dto = MatchDto(match_data, participant_puuid=puuid)
-        match_dto_dict = match_dto.get_as_dict()
-
-        # Filter out unwanted game modes
-        game_mode = match_dto_dict.get('gameMode', '')
-        is_valid_game_mode = game_mode == 'CLASSIC' or game_mode == 'ARAM'
-        if is_valid_game_mode is False:
-            return None
-
-        # Compute extended headers
-        match_dto_dict['matchDate'] = datetime.fromtimestamp(match_dto_dict['gameCreation']/1000).strftime('%Y-%m-%d %H:%M:%S')
-        match_dto_dict['matchHour'] = datetime.fromtimestamp(match_dto_dict['gameCreation']/1000).strftime('%H')
-
-        return [match_dto_dict.get(key, '') for key in self.headers.get_list()]
 
     async def __read_match_file(self, json_match_filepath: str) -> Dict:
         if not json_match_filepath.endswith('.json'):
@@ -81,27 +38,80 @@ class ExportStatisticsWorker:
                 logger.error(f"[!] Error decoding JSON from file {json_match_filepath}: {json_error}")
                 return None
 
+    def __ensure_export_filename(self):
+        csv_export_dir = config.exports['csv_export_dir']
+        os.makedirs(csv_export_dir, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        self.export_filename = os.path.abspath(f'{csv_export_dir}/csv_export_{timestamp}.csv')
+
+    def __transform_match_data(self, match_data) -> List[List[str | int]] | None:
+        # Get base match dto
+        match_dto = MatchDto(match_data)
+
+        # Filter out unwanted PVE game modes
+        if match_dto.team_data is None:
+            return None
+
+        # Filter out unwanted PVP game modes
+        game_mode = match_dto.metadata.get('gameMode', '')
+        if game_mode != 'CLASSIC' and game_mode != 'ARAM':
+            return None
+
+        # Flattened object for export
+        match_dto_dict = {
+            **match_dto.metadata,
+            **match_dto.team_data,
+        }
+
+        # Compute extended headers
+        for participant in match_dto.participants:
+            for key, value in participant.items():
+                # won't filter bools
+                if not isinstance(value, (int, float, complex)):
+                    continue
+
+                if participant['teamId'] == match_dto.friendly_team['teamId']:
+                    dict_key = f"friendly_team_{key}"
+                else:
+                    dict_key = f"enemy_team_{key}"
+
+                if match_dto_dict.get(dict_key, None) is None:
+                    match_dto_dict[dict_key] = 0
+
+                if isinstance(value, bool):
+                    if key != 'win':
+                        match_dto_dict[dict_key] = bool(value if value else match_dto_dict[dict_key])
+                else:  # value is number
+                    match_dto_dict[dict_key] += value
+
+        match_dto_dict['matchDate'] = datetime.fromtimestamp(match_dto_dict['gameCreation']/1000).strftime('%Y-%m-%d %H:%M:%S')
+        match_dto_dict['matchHour'] = datetime.fromtimestamp(match_dto_dict['gameCreation']/1000).strftime('%H')
+        match_dto_dict['win'] = match_dto.friendly_team['win']
+
+        if ExportStatisticsWorker.headers is None:
+            ExportStatisticsWorker.headers = list(match_dto_dict.keys())
+
+        return [[match_dto_dict.get(key, '') for key in ExportStatisticsWorker.headers]]
+
     async def run_read(self, filepaths_queue: asyncio.Queue[str], match_data_queue: asyncio.Queue):
         try:
             while not filepaths_queue.empty():
                 json_match_filepath = await filepaths_queue.get()
-                data = await self.__read_match_file(json_match_filepath)
+                raw_match_data = await self.__read_match_file(json_match_filepath)
 
                 # Unreadable match data
-                if data is None:
+                if raw_match_data is None:
                     filepaths_queue.task_done()
                     continue
 
-                for puuid in config.PUUIDS:
-                    try:
-                        match_data = self.__transform_match_data(data, puuid)
-                        # Unwanted match data
-                        if (match_data is None):
-                            break
-                        await match_data_queue.put(match_data)
+                match_data_list = self.__transform_match_data(raw_match_data)
 
-                    except ParticipantNotFoundException:
-                        continue
+                # Unwanted match data
+                if (match_data_list is None):
+                    continue
+
+                for match_data in match_data_list:
+                    await match_data_queue.put(match_data)
 
                 filepaths_queue.task_done()
 
@@ -116,7 +126,11 @@ class ExportStatisticsWorker:
             async with aiofiles.open(self.export_filename, 'w') as f:
                 writer = AsyncWriter(f)
 
-                await writer.writerow(self.headers.get_list())
+                while ExportStatisticsWorker.headers is None:
+                    logger.debug("[>] Waiting for headers to be set")
+                    await asyncio.sleep(0.5)
+
+                await writer.writerow(ExportStatisticsWorker.headers)
 
                 while True:
                     data = await match_data_queue.get()

@@ -2,6 +2,8 @@ tmp*/
 logs/
 exports/
 
+.vscode/
+
 db/db-data/
 
 # Byte-compiled / optimized / DLL files

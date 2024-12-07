@@ -56,7 +56,7 @@ async def fetch_statistics():
 
 async def export():
     match_files_queue = asyncio.Queue()
-    match_data_queue = asyncio.Queue(1)
+    match_data_queue = asyncio.Queue(10)
 
     filenames = get_filepaths_from_dir(config.exports['match_files_dir'])
     for filename in filenames:
