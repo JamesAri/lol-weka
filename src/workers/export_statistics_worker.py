@@ -44,7 +44,9 @@ class ExportStatisticsWorker:
         timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         self.export_filename = os.path.abspath(f'{csv_export_dir}/csv_export_{timestamp}.csv')
 
-    def __transform_match_data(self, match_data) -> List[List[str | int]] | None:
+    def __transform_match_data(self, match_data) -> List[str | int] | None:
+        # TODO: refactor this mess
+
         # Get base match dto
         match_dto = MatchDto(match_data)
 
@@ -55,6 +57,10 @@ class ExportStatisticsWorker:
         # Filter out unwanted PVP game modes
         game_mode = match_dto.metadata.get('gameMode', '')
         if game_mode != 'CLASSIC' and game_mode != 'ARAM':
+            return None
+
+        # Filter out games which took less than 5 minutes
+        if match_dto.metadata.get('gameDuration', 0) < 300:
             return None
 
         # Flattened object for export
@@ -79,8 +85,7 @@ class ExportStatisticsWorker:
                     match_dto_dict[dict_key] = 0
 
                 if isinstance(value, bool):
-                    if key != 'win':
-                        match_dto_dict[dict_key] = bool(value if value else match_dto_dict[dict_key])
+                    match_dto_dict[dict_key] = bool(value if value else match_dto_dict[dict_key])
                 else:  # value is number
                     match_dto_dict[dict_key] += value
 
@@ -88,10 +93,13 @@ class ExportStatisticsWorker:
         match_dto_dict['matchHour'] = datetime.fromtimestamp(match_dto_dict['gameCreation']/1000).strftime('%H')
         match_dto_dict['win'] = match_dto.friendly_team['win']
 
+        # filter out unwanted columns
+        match_dto_dict = {k: v for k, v in match_dto_dict.items() if k in config.CSV_EXPORT_COLUMNS}
+
         if ExportStatisticsWorker.headers is None:
             ExportStatisticsWorker.headers = list(match_dto_dict.keys())
 
-        return [[match_dto_dict.get(key, '') for key in ExportStatisticsWorker.headers]]
+        return [match_dto_dict.get(key, '') for key in ExportStatisticsWorker.headers]
 
     async def run_read(self, filepaths_queue: asyncio.Queue[str], match_data_queue: asyncio.Queue):
         try:
@@ -104,14 +112,13 @@ class ExportStatisticsWorker:
                     filepaths_queue.task_done()
                     continue
 
-                match_data_list = self.__transform_match_data(raw_match_data)
+                match_data = self.__transform_match_data(raw_match_data)
 
                 # Unwanted match data
-                if (match_data_list is None):
+                if (match_data is None):
                     continue
 
-                for match_data in match_data_list:
-                    await match_data_queue.put(match_data)
+                await match_data_queue.put(match_data)
 
                 filepaths_queue.task_done()
 

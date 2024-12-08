@@ -44,3 +44,21 @@ PUUIDS = [
     'FiB--8fS9Kzsy8zwtz0afbpDSFc1GPtSvnH9jqBkwWGABj1ZN2bRMU2rXar6M31jXBKLlo_sfVUT_w',
     'YkhJDHjPwoRT6sBHoP8bDmIbWL5E5wZ5fOBjYZm9ACA2J5BkI_cbzZmBJMIH2ruLJxQwSLh1slBi7w'
 ]
+
+CSV_EXPORT_COLUMNS = [
+    # 'matchId',
+    # 'gameCreation',
+    # 'matchHour',
+    'win',
+    'gameDuration',
+    'team_enemyVisionPings',
+    'team_needVisionPings',
+    'team_visionScore',
+    'team_visionWardsBoughtInGame',
+    'friendly_team_commandPings',
+    'friendly_team_detectorWardsPlaced',
+    'friendly_team_enemyMissingPings',
+    'friendly_team_getBackPings',
+    'friendly_team_onMyWayPings',
+    'friendly_team_wardsKilled',
+]

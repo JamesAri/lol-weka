@@ -78,6 +78,22 @@ class MatchDto:
         items = info_dto['participants'][0].items()
 
         self.team_data = {}
+
+        # Objectives
+        for objective, stats in self.friendly_team['objectives'].items():
+            self.team_data[f'team_{objective}_kills'] = stats['kills']
+            self.team_data[f'team_{objective}_first'] = stats['first']
+            if self.team_data.get(f'friendly_team_{objective}_kills', None) is None:
+                self.team_data[f'friendly_team_{objective}_kills'] = 0
+            self.team_data[f'friendly_team_{objective}_kills'] += stats['kills']
+
+        for objective, stats in self.enemy_team['objectives'].items():
+            self.team_data[f'team_{objective}_kills'] -= stats['kills']
+            if self.team_data.get(f'enemy_team_{objective}_kills', None) is None:
+                self.team_data[f'enemy_team_{objective}_kills'] = 0
+            self.team_data[f'enemy_team_{objective}_kills'] += stats['kills']
+
+        # Calculate distance between various metrics
         for key, value in items:
             if key != 'win':
                 self.team_data[f"team_{key}"] = 0
@@ -101,10 +117,3 @@ class MatchDto:
                     if isinstance(value, bool):
                         continue
                     self.team_data[f"team_{key}"] -= value
-
-        for objective, stats in self.friendly_team['objectives'].items():
-            self.team_data[f'{objective}_kills'] = stats['kills']
-            self.team_data[f'{objective}_first'] = stats['first']
-
-        for objective, stats in self.enemy_team['objectives'].items():
-            self.team_data[f'{objective}_kills'] -= stats['kills']
