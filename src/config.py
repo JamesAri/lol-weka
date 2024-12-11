@@ -48,7 +48,7 @@ PUUIDS = [
 CSV_EXPORT_COLUMNS = [
     # 'matchId',
     # 'gameCreation',
-    # 'matchHour',
+    'matchHour',
     'win',
     'gameDuration',
     'team_enemyVisionPings',
